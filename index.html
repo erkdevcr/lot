@@ -181,12 +181,13 @@ d.setAttribute('data-theme',t);})();
 
   /* ---------- Barra superior ---------- */
   header.topbar{
-    display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
+    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
     gap:var(--space-4);padding:var(--space-2);padding-left:var(--space-2);
     margin-bottom:var(--space-6);border-radius:var(--radius);box-shadow:var(--glass-shadow);
   }
-  .brand{display:flex;align-items:center;gap:var(--space-3);min-width:0;}
-  .brand > div:last-child{min-width:0;}
+  .brand{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-width:0;}
+  .brand-title{min-width:0;}
+  .brand-actions{display:flex;align-items:center;gap:var(--space-2);}
   .brand-badge{
     width:var(--control-h);height:var(--control-h);border-radius:var(--radius-sm);flex-shrink:0;
     background:linear-gradient(135deg,var(--primary),var(--primary-dark));
@@ -206,7 +207,8 @@ d.setAttribute('data-theme',t);})();
   }
   nav.tabs button:hover:not(.active){color:var(--text);background:var(--glass-bg-soft);}
   nav.tabs button.active{background:var(--primary);color:#fff;}
-  .topbar-actions{display:flex;justify-content:flex-end;gap:var(--space-2);}
+  /* La pestaña Archivados usa gris en vez del color de marca: refuerza que esa sección es la "en grises" */
+  nav.tabs button[data-nav="archivados"].active{background:#6b6775;}
 
   /* ---------- Encabezado de sección ---------- */
   .section-head{
@@ -230,6 +232,7 @@ d.setAttribute('data-theme',t);})();
     cursor:pointer;
   }
   .btn-primary .icon, .btn-secondary .icon, .btn-danger .icon, .btn-ghost .icon{vertical-align:0;}
+  .fab-circle{display:inline-flex;}
   .btn-primary{
     background:var(--primary);color:#fff;border-color:rgba(255,255,255,.14);
     box-shadow:0 4px 16px rgba(91,61,240,.40);
@@ -247,6 +250,8 @@ d.setAttribute('data-theme',t);})();
   .btn-ghost:hover{background:var(--glass-bg-soft);color:var(--text);}
   .btn-sm{min-height:var(--control-h-sm);padding:var(--space-1) var(--space-3);font-size:var(--fs-sm);border-radius:var(--radius-sm);}
   .btn-primary:disabled, .btn-secondary:disabled, .btn-danger:disabled{opacity:.45;cursor:not-allowed;}
+  /* Visualmente deshabilitado pero sigue respondiendo al click (para mostrar el aviso del límite de prueba) */
+  .btn-deshabilitado{opacity:.45;}
   .btn-secondary:disabled:hover{background:var(--glass-bg-soft);border-color:var(--glass-border-strong);}
   .icon-btn{
     border:1px solid var(--glass-border);background:var(--glass-bg-soft);color:var(--text);
@@ -308,20 +313,30 @@ d.setAttribute('data-theme',t);})();
   .empty-state .big .icon{width:26px;height:26px;color:var(--primary-ink);vertical-align:0;}
   .empty-state > div[style]{color:var(--text);}
   #home-content > .empty-state, #archivados-content > .empty-state{padding:56px var(--space-5);}
+  /* Estado vacío de Archivados en gris, a tono con el resto de esa sección */
+  #archivados-content > .empty-state .big{background:rgba(148,142,169,.16);border-color:rgba(148,142,169,.35);color:var(--muted);}
+  #archivados-content > .empty-state .big .icon{color:var(--muted);}
 
   /* ---------- Fichas de sorteo ---------- */
   .grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:var(--space-4);}
   .card{
     position:relative;overflow:hidden;border:1px solid var(--glass-border-strong);border-radius:var(--radius);
     box-shadow:var(--card-shadow);
-    display:flex;flex-direction:column;justify-content:flex-end;min-height:208px;padding-top:96px;
+    display:flex;flex-direction:column;justify-content:flex-end;min-height:150px;padding-top:64px;
   }
+  /* Franja superior que distingue de un vistazo abiertos (color de marca) de archivados (gris) */
+  .card::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;z-index:2;background:var(--primary);}
+  .card-archivado::before{background:#8d889a;}
   .card-bg{
     position:absolute;inset:0;background-size:cover;background-position:center;background-repeat:no-repeat;
     background-image:linear-gradient(135deg,var(--primary),var(--primary-dark));
   }
+  /* Fichas archivadas: fondo desaturado para diferenciarlas de los sorteos abiertos */
+  .card-archivado .card-bg{filter:grayscale(.9) brightness(.92);}
+  .card-archivado .badge-regular{background:rgba(148,142,169,.22);color:var(--muted);border-color:rgba(148,142,169,.4);}
+  .card-archivado .winner-row:not(.winner-none){color:var(--muted);}
   .card-bg-icon{
-    position:absolute;left:0;right:0;top:0;height:96px;display:flex;align-items:center;justify-content:center;
+    position:absolute;left:0;right:0;top:0;height:64px;display:flex;align-items:center;justify-content:center;
     color:rgba(255,255,255,.38);
   }
   .card-bg-icon .icon{width:44px;height:44px;}
@@ -715,14 +730,8 @@ d.setAttribute('data-theme',t);})();
 
   /* ---------- Responsive ---------- */
   @media (max-width:860px){
-    header.topbar{
-      grid-template-columns:1fr auto;
-      grid-template-areas:"brand actions" "tabs tabs";
-      gap:var(--space-3);
-    }
-    header.topbar .brand{grid-area:brand;}
-    header.topbar nav.tabs{grid-area:tabs;}
-    header.topbar .topbar-actions{grid-area:actions;}
+    header.topbar{gap:var(--space-3);}
+    header.topbar nav.tabs{flex:1 1 100%;}
     nav.tabs button{flex:1;}
   }
   @media (max-width:640px){
@@ -731,21 +740,34 @@ d.setAttribute('data-theme',t);})();
     .two-col{grid-template-columns:1fr;gap:0;}
     .dash-header{flex-direction:column;padding:var(--space-4);gap:var(--space-4);}
     .dash-header > .dash-actions{position:static;}
-    .dash-header > .dash-actions > button{flex:1 1 0;}
+    .dash-header > .dash-actions > button{flex:1 1 0;white-space:nowrap;}
     .dash-header-row{padding-right:0;min-height:0;}
     .dash-stats{grid-template-columns:repeat(2,minmax(0,1fr));}
     .legend{gap:var(--space-3);}
     .toolbar input[type=text]{max-width:none;flex-basis:100%;}
     .modal-header, .modal-footer{padding-left:var(--space-4);padding-right:var(--space-4);}
     .modal-body{padding:var(--space-4);}
+    .modal-overlay .login-contacto{padding-left:var(--space-4);padding-right:var(--space-4);}
     .modal-footer > button{flex:1;}
     .descargas-wrap{padding:var(--space-4);}
     .descargas-wrap .btn-primary, .descargas-wrap .btn-secondary{flex:1 1 100%;}
   }
   @media (max-width:520px){
-    .section-head{flex-direction:column;align-items:stretch;gap:var(--space-3);}
+    .section-head{flex-direction:row;align-items:flex-start;gap:var(--space-3);}
     .section-sub{display:block;margin-left:0;margin-top:var(--space-1);}
-    .section-head > button{width:100%;}
+    /* «Crear sorteo» pasa a un botón circular (+) con la etiqueta debajo, a la derecha */
+    #btn-nuevo-sorteo{
+      flex-direction:column;width:auto;flex-shrink:0;gap:4px;
+      background:none;border:none;box-shadow:none;padding:0;min-height:0;color:var(--text);
+    }
+    #btn-nuevo-sorteo:hover{background:none;}
+    #btn-nuevo-sorteo .fab-circle{
+      width:48px;height:48px;border-radius:50%;flex-shrink:0;
+      background:var(--primary);color:#fff;align-items:center;justify-content:center;
+      box-shadow:0 4px 16px rgba(91,61,240,.4);
+    }
+    #btn-nuevo-sorteo .fab-circle .icon{width:22px;height:22px;}
+    #btn-nuevo-sorteo .fab-label{font-size:var(--fs-xs);font-weight:600;white-space:nowrap;}
     .type-toggle{flex-direction:column;gap:var(--space-2);}
     body:has(.selection-bar.show) .toast{bottom:136px;}
   }
@@ -825,10 +847,8 @@ d.setAttribute('data-theme',t);})();
     #num-modal-body > div:last-child{margin:var(--space-4) calc(-1 * var(--space-4)) calc(-1 * var(--space-4));padding:var(--space-3) var(--space-4);}
   }
   @media (max-width:520px){
-    /* Barra superior en dos filas: Respaldo queda como botón de ícono */
-    header.topbar{grid-template-columns:1fr auto;grid-template-areas:"brand actions" "tabs tabs";}
-    .topbar-actions > button{flex:none;width:var(--control-h);padding:0;}
-    #btn-abrir-respaldo .btn-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
+    /* Header muy angosto: el panel de ajustes no debe salirse de la pantalla */
+    .menu-ajustes-panel{left:auto;right:0;}
   }
 
   /* =========================================================
@@ -920,16 +940,46 @@ d.setAttribute('data-theme',t);})();
   :root[data-theme="light"] .btn-secondary:disabled:hover{border-color:#7a5fe0;}
   :root[data-theme="light"] .btn-secondary:hover{border-color:#5b3df0;}
 
-  /* ---------- Selector de tema (barra superior de inicio) ---------- */
-  .theme-toggle{
-    position:relative;flex:none;width:var(--control-h);height:var(--control-h);padding:0;
+  /* ---------- Menú de ajustes (hamburguesa): Tema / Licencia / Respaldo ---------- */
+  .menu-ajustes{position:relative;}
+  .menu-ajustes-trigger{
+    flex:none;width:var(--control-h);height:var(--control-h);padding:0;
     display:inline-flex;align-items:center;justify-content:center;
     border:1px solid var(--glass-border-strong);border-radius:var(--radius);
     background:var(--glass-bg-soft);color:var(--text);cursor:pointer;
   }
-  .theme-toggle:hover{background:var(--glass-bg-hover);border-color:var(--glass-border-hover);}
+  .menu-ajustes-trigger:hover{background:var(--glass-bg-hover);border-color:var(--glass-border-hover);}
+  .menu-ajustes-panel{
+    position:absolute;top:calc(100% + var(--space-2));left:0;z-index:30;
+    width:248px;max-width:calc(100vw - 32px);padding:var(--space-2);
+    display:flex;flex-direction:column;gap:var(--space-1);
+    background:var(--glass-bg-strong);border:1px solid var(--glass-border-strong);border-radius:var(--radius);
+    box-shadow:var(--modal-shadow);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+  }
+  .menu-ajustes-seccion{padding:var(--space-1) var(--space-1) var(--space-2);border-bottom:1px solid var(--divider);}
+  .menu-ajustes-seccion:last-child{border-bottom:none;padding-bottom:var(--space-1);}
+  .menu-ajustes-titulo{
+    font-size:var(--fs-2xs);font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--muted);padding:var(--space-1) var(--space-2);
+  }
+  .menu-ajustes-item{
+    display:flex;align-items:center;gap:var(--space-2);width:100%;
+    padding:var(--space-2) var(--space-2);border:none;border-radius:var(--radius-sm);
+    background:transparent;color:var(--text);cursor:pointer;text-align:left;
+    font-family:inherit;font-size:var(--fs-sm);font-weight:600;
+  }
+  .menu-ajustes-item:hover{background:var(--glass-bg-hover);}
+  /* Selector de tema, ahora como fila dentro del menú de ajustes */
+  .theme-toggle{
+    display:flex;align-items:center;gap:var(--space-2);width:100%;
+    padding:var(--space-2) var(--space-2);border:none;border-radius:var(--radius-sm);
+    background:transparent;color:var(--text);cursor:pointer;text-align:left;
+    font-family:inherit;font-size:var(--fs-sm);font-weight:600;
+  }
+  .theme-toggle:hover{background:var(--glass-bg-hover);}
+  .menu-tema-icono{position:relative;width:18px;height:18px;flex-shrink:0;display:inline-block;}
   .theme-toggle .theme-icon{
-    position:absolute;width:20px;height:20px;vertical-align:0;
+    position:absolute;inset:0;width:18px;height:18px;vertical-align:0;
     transition:transform .35s cubic-bezier(.34,1.3,.64,1), opacity .25s ease;
   }
   .theme-toggle .theme-moon{opacity:0;transform:rotate(-90deg) scale(.5);}
@@ -938,6 +988,14 @@ d.setAttribute('data-theme',t);})();
   @media (prefers-reduced-motion: reduce){
     .theme-toggle .theme-icon{transition:none;}
   }
+  /* Selector de color de marca */
+  .color-marca-row{display:flex;flex-wrap:wrap;gap:var(--space-2);padding:var(--space-2) var(--space-2) 0;}
+  .color-marca-swatch{
+    width:22px;height:22px;border-radius:50%;flex:none;cursor:pointer;padding:0;
+    background:var(--sw);border:2px solid transparent;box-shadow:0 0 0 1px var(--glass-border-strong);
+  }
+  .color-marca-swatch:hover{box-shadow:0 0 0 1px var(--glass-border-hover);}
+  .color-marca-swatch.activo{border-color:var(--text);box-shadow:0 0 0 1px var(--text);}
 
   /* =========================================================
      Ajustes 06-oct
@@ -966,12 +1024,14 @@ d.setAttribute('data-theme',t);})();
   .dash-banner-meta .countdown-archived .icon{width:13px;height:13px;}
 
   /* 1/3) Acciones: «Editar fecha»/«Editar sorteo» arriba a la derecha; «Archivar»/«Eliminar» al final */
-  .dash-header > .dash-actions > button{min-height:var(--control-h);}
+  /* altura fija (no solo mínima) para que "Editar fecha"/"Editar sorteo" midan exactamente
+     lo mismo que "Archivar/Restaurar sorteo" y "Eliminar sorteo", tengan o no ícono adentro */
+  .dash-header > .dash-actions > button{min-height:var(--control-h);height:var(--control-h);}
   .dash-actions-final{display:flex;justify-content:flex-end;gap:var(--space-2);margin-top:var(--space-4);
     padding:var(--space-3) var(--space-4);border-radius:var(--radius);
     background:var(--glass-bg);border:1px solid var(--glass-border);box-shadow:var(--glass-shadow);
     backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);}
-  .dash-actions-final > button{min-height:var(--control-h);}
+  .dash-actions-final > button{min-height:var(--control-h);height:var(--control-h);}
   @media (max-width:640px){
     .dash-actions-final{flex-wrap:wrap;}
     .dash-actions-final > button{flex:1 1 auto;white-space:nowrap;}
@@ -1102,6 +1162,31 @@ d.setAttribute('data-theme',t);})();
   }
   .licencia-banner-aviso{background:var(--apartado-bg);border:1px solid var(--apartado);color:var(--text);}
   .licencia-banner-vencida{background:var(--danger-bg);border:1px solid var(--danger-border);color:var(--text);}
+  .licencia-banner-prueba{background:var(--primary-tint);border:1px solid var(--primary-tint-border);color:var(--text);}
+
+  /* ---------- Modo de prueba y contacto, en la pantalla de login ---------- */
+  .login-separador{
+    display:flex;align-items:center;gap:var(--space-3);margin:var(--space-4) 0 0;
+    color:var(--muted);font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.04em;
+  }
+  .login-separador::before, .login-separador::after{content:"";flex:1;height:1px;background:var(--divider);}
+  .login-prueba-nota{font-size:var(--fs-sm);color:var(--muted);text-align:center;margin-top:var(--space-3);}
+  .login-contacto{margin-top:var(--space-5);padding-top:var(--space-4);border-top:1px solid var(--divider);}
+  .login-contacto-toggle{
+    display:block;width:100%;background:none;border:none;padding:var(--space-1);
+    color:var(--primary-ink);font-weight:600;font-size:var(--fs-sm);cursor:pointer;text-align:center;
+    font-family:inherit;
+  }
+  .login-contacto-toggle:hover{text-decoration:underline;}
+  .login-contacto-opciones{display:flex;gap:var(--space-2);margin-top:var(--space-3);}
+  .login-contacto-opcion{
+    flex:1;display:flex;align-items:center;justify-content:center;gap:var(--space-2);
+    padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);border:1px solid var(--glass-border-strong);
+    color:var(--text);text-decoration:none;font-size:var(--fs-sm);font-weight:600;
+  }
+  .login-contacto-opcion:hover{background:var(--glass-bg-hover);}
+  /* Mismo bloque de contacto, reutilizado dentro del modal "Mi licencia" */
+  .modal-overlay .login-contacto{padding-left:var(--space-5);padding-right:var(--space-5);padding-bottom:var(--space-4);}
 </style>
 </head>
 <body>
@@ -1124,6 +1209,9 @@ d.setAttribute('data-theme',t);})();
     <symbol id="icon-hash" viewBox="0 0 24 24"><path d="M9 4 7 20"/><path d="M17 4l-2 16"/><path d="M4 9h16"/><path d="M3 15h16"/></symbol>
     <symbol id="icon-trash" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V4.8A.8.8 0 0 1 9.8 4h4.4a.8.8 0 0 1 .8.8V7"/><path d="M6.5 7l.9 12.1A1 1 0 0 0 8.4 20h7.2a1 1 0 0 0 1-.9L17.5 7"/><path d="M10 11v5"/><path d="M14 11v5"/></symbol>
     <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 2"/></symbol>
+    <symbol id="icon-menu" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></symbol>
+    <symbol id="icon-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M4 7l8 6 8-6"/></symbol>
+    <symbol id="icon-whatsapp" viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.5.6.6 0 1 .4 1 1v3.4c0 .6-.4 1-1 1C10.9 21 3 13.1 3 3.1c0-.6.4-1 1-1h3.4c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.5.1.3 0 .7-.2 1L6.6 10.8Z"/></symbol>
   </defs>
 </svg>
 
@@ -1149,6 +1237,10 @@ d.setAttribute('data-theme',t);})();
       </div>
       <button class="btn-primary" id="btn-login-validar">Ingresar</button>
       <div class="login-msg" id="login-msg"></div>
+
+      <div class="login-separador" id="login-prueba-separador"><span>o</span></div>
+      <button type="button" class="btn-secondary" id="btn-login-prueba">Probar gratis 15 días (sin código)</button>
+      <div class="login-prueba-nota" id="login-prueba-nota" style="display:none;">Ya usaste tu período de prueba en este dispositivo.</div>
     </div>
 
     <div id="login-paso-otro-dispositivo" style="display:none;">
@@ -1166,6 +1258,14 @@ d.setAttribute('data-theme',t);})();
       <div class="login-exito" id="login-exito-msg"></div>
       <button class="btn-primary" id="btn-login-continuar">Comenzar a usar la app</button>
     </div>
+
+    <div class="login-contacto">
+      <button type="button" class="login-contacto-toggle" id="btn-login-contacto">¿No tienes código? Contáctanos</button>
+      <div class="login-contacto-opciones" id="login-contacto-opciones" hidden>
+        <a class="login-contacto-opcion" id="link-contacto-correo" href="#" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-mail"></use></svg>Correo</a>
+        <a class="login-contacto-opcion" id="link-contacto-whatsapp" href="#" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-whatsapp"></use></svg>WhatsApp</a>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1174,23 +1274,50 @@ d.setAttribute('data-theme',t);})();
   <header class="topbar">
     <div class="brand">
       <div class="brand-badge"><svg class="icon"><use href="#icon-ticket"></use></svg></div>
-      <div>
+      <div class="brand-title">
         <h1>Gestor de Sorteos</h1>
-        <span>Panel del creador &middot; administración local</span>
+      </div>
+      <div class="brand-actions">
+        <div class="menu-ajustes" id="menu-ajustes">
+          <button type="button" class="menu-ajustes-trigger" id="btn-menu-ajustes" aria-haspopup="true" aria-expanded="false" aria-label="Ajustes" title="Ajustes">
+            <svg class="icon"><use href="#icon-menu"></use></svg>
+          </button>
+          <div class="menu-ajustes-panel" id="menu-ajustes-panel" hidden>
+            <div class="menu-ajustes-seccion">
+              <div class="menu-ajustes-titulo">Tema</div>
+              <button type="button" class="theme-toggle" id="btn-tema" aria-label="Cambiar a tema claro" title="Cambiar a tema claro">
+                <span class="menu-tema-icono">
+                  <svg class="icon theme-icon theme-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.8v2.1M12 19.1v2.1M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M2.8 12h2.1M19.1 12h2.1M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5"/></svg>
+                  <svg class="icon theme-icon theme-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19.6 14.6A7.9 7.9 0 0 1 9.4 4.4a7.9 7.9 0 1 0 10.2 10.2Z"/></svg>
+                </span>
+                <span id="btn-tema-texto">Cambiar a tema claro</span>
+              </button>
+              <div class="color-marca-row" id="color-marca-row" role="group" aria-label="Color de marca">
+                <button type="button" class="color-marca-swatch" data-color="#5b3df0" style="--sw:#5b3df0" title="Morado (predeterminado)" aria-label="Morado (predeterminado)"></button>
+                <button type="button" class="color-marca-swatch" data-color="#2f6fed" style="--sw:#2f6fed" title="Azul" aria-label="Azul"></button>
+                <button type="button" class="color-marca-swatch" data-color="#0ea5a0" style="--sw:#0ea5a0" title="Turquesa" aria-label="Turquesa"></button>
+                <button type="button" class="color-marca-swatch" data-color="#1fa672" style="--sw:#1fa672" title="Verde" aria-label="Verde"></button>
+                <button type="button" class="color-marca-swatch" data-color="#f2873d" style="--sw:#f2873d" title="Naranja" aria-label="Naranja"></button>
+                <button type="button" class="color-marca-swatch" data-color="#e0469e" style="--sw:#e0469e" title="Rosado" aria-label="Rosado"></button>
+                <button type="button" class="color-marca-swatch" data-color="#e23b3b" style="--sw:#e23b3b" title="Rojo" aria-label="Rojo"></button>
+              </div>
+            </div>
+            <div class="menu-ajustes-seccion">
+              <div class="menu-ajustes-titulo">Licencia</div>
+              <button type="button" class="menu-ajustes-item" id="btn-mi-licencia" title="Ver mi licencia"><svg class="icon"><use href="#icon-lock"></use></svg><span>Ver mi licencia</span></button>
+            </div>
+            <div class="menu-ajustes-seccion">
+              <div class="menu-ajustes-titulo">Respaldo</div>
+              <button type="button" class="menu-ajustes-item" id="btn-abrir-respaldo" title="Exportar o importar una copia de seguridad"><svg class="icon"><use href="#icon-download"></use></svg><span>Exportar o importar copia</span></button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     <nav class="tabs">
       <button data-nav="home" class="active">Sorteos</button>
       <button data-nav="archivados">Archivados</button>
     </nav>
-    <div class="topbar-actions">
-      <button type="button" class="theme-toggle" id="btn-tema" aria-label="Cambiar a tema claro" title="Cambiar a tema claro">
-        <svg class="icon theme-icon theme-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.8v2.1M12 19.1v2.1M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M2.8 12h2.1M19.1 12h2.1M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5"/></svg>
-        <svg class="icon theme-icon theme-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19.6 14.6A7.9 7.9 0 0 1 9.4 4.4a7.9 7.9 0 1 0 10.2 10.2Z"/></svg>
-      </button>
-      <button class="btn-secondary" id="btn-mi-licencia" title="Ver mi licencia"><svg class="icon"><use href="#icon-lock"></use></svg><span class="btn-label">Mi licencia</span></button>
-      <button class="btn-secondary" id="btn-abrir-respaldo" title="Exportar o importar una copia de seguridad"><svg class="icon"><use href="#icon-download"></use></svg><span class="btn-label">Respaldo (JSON)</span></button>
-    </div>
   </header>
 
   <div class="licencia-banner" id="licencia-banner"></div>
@@ -1199,7 +1326,10 @@ d.setAttribute('data-theme',t);})();
   <section id="view-home" class="view active">
     <div class="section-head">
       <h2 class="section-heading">Sorteos abiertos<span class="section-sub">Progreso y fechas en tiempo real</span></h2>
-      <button class="btn-primary" id="btn-nuevo-sorteo"><svg class="icon"><use href="#icon-plus"></use></svg>Crear sorteo</button>
+      <button class="btn-primary" id="btn-nuevo-sorteo">
+        <span class="fab-circle"><svg class="icon"><use href="#icon-plus"></use></svg></span>
+        <span class="fab-label">Crear sorteo</span>
+      </button>
     </div>
     <div id="home-content"></div>
   </section>
@@ -1227,9 +1357,10 @@ d.setAttribute('data-theme',t);})();
       <button class="close-x" data-close="modal-crear"><svg class="icon"><use href="#icon-close"></use></svg></button>
     </div>
     <div class="modal-body">
-      <div class="form-group">
+      <div class="form-group" id="grupo-titulo">
         <label>Título del premio</label>
         <input type="text" id="f-titulo" placeholder="Ej: iPhone 15 Pro, Canasta navideña...">
+        <div class="form-hint" id="f-titulo-nota-prueba" style="display:none;">En el modo de prueba el nombre es fijo</div>
       </div>
 
       <div class="form-group">
@@ -1240,7 +1371,7 @@ d.setAttribute('data-theme',t);})();
         </div>
       </div>
 
-      <div class="form-group">
+      <div class="form-group" id="grupo-tipo-sorteo">
         <label>Tipo de sorteo</label>
         <div class="type-toggle">
           <div class="type-option selected" data-tipo="regular" id="opt-regular">Regular<br><span class="form-hint">Un solo listado de números</span></div>
@@ -1256,7 +1387,7 @@ d.setAttribute('data-theme',t);})();
         <div class="form-group">
           <label>Cantidad de números</label>
           <input type="number" id="f-numeros" min="2" max="10000" value="100">
-          <div class="form-hint">Se generan desde 00 hasta el total indicado</div>
+          <div class="form-hint" id="f-numeros-hint">Se generan desde 00 hasta el total indicado</div>
         </div>
       </div>
 
@@ -1437,6 +1568,13 @@ d.setAttribute('data-theme',t);})();
       <button class="close-x" data-close="modal-licencia"><svg class="icon"><use href="#icon-close"></use></svg></button>
     </div>
     <div class="modal-body" id="licencia-info"></div>
+    <div class="login-contacto" id="licencia-contacto">
+      <button type="button" class="login-contacto-toggle" id="btn-licencia-contacto">¿No tienes código? Contáctanos</button>
+      <div class="login-contacto-opciones" id="licencia-contacto-opciones" hidden>
+        <a class="login-contacto-opcion" id="link-licencia-contacto-correo" href="#" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-mail"></use></svg>Correo</a>
+        <a class="login-contacto-opcion" id="link-licencia-contacto-whatsapp" href="#" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-whatsapp"></use></svg>WhatsApp</a>
+      </div>
+    </div>
     <div class="modal-footer">
       <button class="btn-secondary" data-close="modal-licencia">Cerrar</button>
       <button class="btn-primary" id="btn-licencia-nuevo-codigo">Ingresar otro código</button>
@@ -1475,6 +1613,16 @@ catch(e){ console.warn('No se pudo inicializar el cliente de Supabase', e); }
 const LICENCIA_KEY = 'sorteos_licencia_v1'; // {codigo, fingerprint, tipo, fechaVencimiento}
 const FINGERPRINT_KEY = 'sorteos_fingerprint_v1';
 let appPrincipalIniciada = false;
+
+/* ---------- Modo de prueba (sin código) ---------- */
+const PRUEBA_KEY = 'sorteos_prueba_v1'; // {inicio, sorteosCreados}
+const PRUEBA_DIAS = 15;
+const PRUEBA_MAX_NUMEROS = 25;
+const PRUEBA_TITULO = 'Sorteo de prueba';
+const CONTACTO_EMAIL = 'lot.app.cr@gmail.com';
+const CONTACTO_WHATSAPP = '50686236152';
+const CONTACTO_MENSAJE = 'Hola! quiero información para comprar un código';
+let modoPrueba = false;
 let codigoEnCurso = null; // guarda {codigo, nombre, telefono} mientras se resuelve "otro dispositivo"
 
 /* -- Fingerprint: identificador de este dispositivo/navegador, generado una
@@ -1543,10 +1691,34 @@ function avisoDiasPorTipoLicencia(tipo){
   return tipo === '1_mes' ? 7 : tipo === '3_meses' ? 15 : 30;
 }
 
+/* -- Modo de prueba: sin código, 15 días, 1 sorteo de hasta 25 números -- */
+function leerPruebaLocal(){
+  try{ const raw = localStorage.getItem(PRUEBA_KEY); return raw ? JSON.parse(raw) : null; }
+  catch(e){ return null; }
+}
+function guardarPruebaLocal(p){ try{ localStorage.setItem(PRUEBA_KEY, JSON.stringify(p)); }catch(e){} }
+function iniciarPruebaLocal(){
+  const p = { inicio: new Date().toISOString(), sorteosCreados: 0 };
+  guardarPruebaLocal(p);
+  return p;
+}
+function finDePrueba(prueba){
+  const fin = new Date(prueba.inicio);
+  fin.setDate(fin.getDate() + PRUEBA_DIAS);
+  return fin;
+}
+function diasRestantesPrueba(prueba){
+  return Math.ceil((finDePrueba(prueba) - new Date()) / 86400000);
+}
+function pruebaVigente(prueba){
+  return !!prueba && diasRestantesPrueba(prueba) > 0;
+}
+
 /* -- UI: pantalla de login -- */
 function mostrarPantallaLogin(){
   mostrarPasoLogin('codigo');
   mensajeLogin('');
+  actualizarBotonPrueba();
   document.getElementById('pantalla-login').style.display = 'flex';
 }
 function ocultarPantallaLogin(){
@@ -1563,6 +1735,17 @@ function mensajeLogin(texto, tipo){
   if(!el) return;
   el.textContent = texto || '';
   el.className = 'login-msg' + (tipo ? ' login-msg-' + tipo : '');
+}
+/* Muestra "Probar gratis" solo si este dispositivo nunca usó el modo de prueba */
+function actualizarBotonPrueba(){
+  const btn = document.getElementById('btn-login-prueba');
+  const separador = document.getElementById('login-prueba-separador');
+  const nota = document.getElementById('login-prueba-nota');
+  if(!btn) return;
+  const yaUsada = !!leerPruebaLocal();
+  btn.style.display = yaUsada ? 'none' : '';
+  if(separador) separador.style.display = yaUsada ? 'none' : '';
+  if(nota) nota.style.display = yaUsada ? 'block' : 'none';
 }
 
 async function manejarEnvioLogin(forzar){
@@ -1637,8 +1820,10 @@ async function manejarEnvioLogin(forzar){
 }
 
 async function continuarTrasLogin(){
+  modoPrueba = false; // un código real siempre reemplaza al modo de prueba, aunque haya estado activo
   ocultarPantallaLogin();
   if(!appPrincipalIniciada) await iniciarAppPrincipal();
+  else actualizarEstadoBotonNuevoSorteo();
   mostrarAvisoVencimientoSiAplica(leerLicenciaLocal());
 }
 
@@ -1685,14 +1870,43 @@ function mostrarAvisoVencimientoSiAplica(lic){
   if(btn) btn.addEventListener('click', ()=>{ borrarLicenciaLocal(); mostrarPantallaLogin(); });
 }
 
+/* Banner del modo de prueba: siempre visible mientras dure, con los días restantes */
+function mostrarAvisoPruebaSiAplica(prueba){
+  const banner = document.getElementById('licencia-banner');
+  if(!banner || !prueba) { if(banner) banner.style.display = 'none'; return; }
+  const dias = diasRestantesPrueba(prueba);
+  if(dias <= 0){
+    banner.className = 'licencia-banner licencia-banner-vencida';
+    banner.innerHTML = '<span>Tu período de prueba terminó. Compra un código para seguir usando la app.</span>' +
+      '<button class="btn-secondary" id="btn-ir-nuevo-codigo">Comprar código</button>';
+  } else {
+    banner.className = 'licencia-banner licencia-banner-prueba';
+    banner.innerHTML = `<span>Modo de prueba: te quedan ${dias} día${dias === 1 ? '' : 's'}. Puedes crear 1 sorteo de hasta ${PRUEBA_MAX_NUMEROS} números.</span>` +
+      '<button class="btn-secondary" id="btn-ir-nuevo-codigo">Comprar código</button>';
+  }
+  banner.style.display = 'flex';
+  const btn = document.getElementById('btn-ir-nuevo-codigo');
+  if(btn) btn.addEventListener('click', ()=> mostrarPantallaLogin());
+}
+
 function abrirModalLicencia(){
   const lic = leerLicenciaLocal();
   const info = document.getElementById('licencia-info');
+  const contactoOpciones = document.getElementById('licencia-contacto-opciones');
+  if(contactoOpciones) contactoOpciones.hidden = true; // siempre arranca cerrado al abrir el modal
   if(lic && lic.fechaVencimiento){
     const dias = diasRestantesLicencia(lic.fechaVencimiento);
     info.innerHTML = `<p style="margin-top:0;">Tipo de código: <b>${tipoLicenciaLegible(lic.tipo)}</b></p>` +
       `<p>Vence el <b>${formatFechaCortaDDMMYY(lic.fechaVencimiento)}</b>` +
       (dias > 0 ? ` (faltan ${dias} día${dias === 1 ? '' : 's'}).</p>` : ` (ya venció).</p>`);
+  } else if(modoPrueba){
+    const prueba = leerPruebaLocal();
+    const dias = prueba ? diasRestantesPrueba(prueba) : 0;
+    const sorteosCreados = prueba ? prueba.sorteosCreados : 0;
+    info.innerHTML = '<p style="margin-top:0;">Estás en el <b>modo de prueba</b> (sin código).</p>' +
+      `<p>${dias > 0 ? `Quedan <b>${dias} día${dias === 1 ? '' : 's'}</b>.` : 'Tu período de prueba terminó.'}</p>` +
+      `<p>Sorteos de prueba creados: <b>${sorteosCreados} de 1</b> (hasta ${PRUEBA_MAX_NUMEROS} números cada uno).</p>` +
+      '<p>Compra un código para quitar estos límites.</p>';
   } else {
     info.innerHTML = '<p style="margin-top:0;">No se encontró información de licencia.</p>';
   }
@@ -2051,6 +2265,7 @@ document.getElementById('f-importar-json').addEventListener('change', (e)=>{
 
 /* ---------- RENDER: HOME ---------- */
 function renderHome(){
+  actualizarEstadoBotonNuevoSorteo();
   const cont = document.getElementById('home-content');
   const sorteos = state.sorteos.filter(s => !s.archivado);
   if(sorteos.length === 0){
@@ -2096,7 +2311,7 @@ function cardSorteoHTML(s){
   const cd = countdownBadge(s.fechaSorteo);
   const bgStyle = s.imagen ? ` style="background-image:url('${escapeAttr(s.imagen)}')"` : '';
   return `
-  <div class="card" data-open-dash="${s.id}">
+  <div class="card card-abierto" data-open-dash="${s.id}">
     <div class="card-bg"${bgStyle}>${!s.imagen ? `<span class="card-bg-icon">${icon('gift')}</span>` : ''}</div>
     <div class="card-scrim"></div>
     <div class="card-body">
@@ -2124,7 +2339,7 @@ function cardArchivadoHTML(s){
     ? `<div class="winner-row">${icon('trophy')} N° ganador: ${s.ganador.numero}${s.tipo==='series' ? ' (Serie '+s.ganador.serie+')' : ''}<br>${s.ganador.nombre ? 'Ganador: '+escapeHtml(s.ganador.nombre) : 'Sin comprador registrado'}</div>`
     : `<div class="winner-row winner-none">Sin ganador</div>`;
   return `
-  <div class="card" data-open-dash="${s.id}">
+  <div class="card card-archivado" data-open-dash="${s.id}">
     <div class="card-bg"${bgStyle}>${!s.imagen ? `<span class="card-bg-icon">${icon('gift')}</span>` : ''}</div>
     <div class="card-scrim"></div>
     <div class="card-body">
@@ -2143,7 +2358,47 @@ function cardArchivadoHTML(s){
 }
 
 /* ---------- Crear sorteo: wiring del modal ---------- */
+/* En modo de prueba: nombre fijo, sin series, máximo PRUEBA_MAX_NUMEROS números, y no se puede
+   abrir el formulario si ya se usó el único sorteo de prueba permitido. */
+function aplicarLimitesPruebaEnModal(){
+  const tituloInput = document.getElementById('f-titulo');
+  const notaTitulo = document.getElementById('f-titulo-nota-prueba');
+  const grupoTipo = document.getElementById('grupo-tipo-sorteo');
+  const numerosInput = document.getElementById('f-numeros');
+  const numerosHint = document.getElementById('f-numeros-hint');
+  if(modoPrueba){
+    tituloInput.value = PRUEBA_TITULO;
+    tituloInput.readOnly = true;
+    notaTitulo.style.display = 'block';
+    grupoTipo.style.display = 'none';
+    selectTipo('regular'); // en prueba siempre es regular, sin series
+    numerosInput.max = PRUEBA_MAX_NUMEROS;
+    if(parseInt(numerosInput.value, 10) > PRUEBA_MAX_NUMEROS) numerosInput.value = PRUEBA_MAX_NUMEROS;
+    numerosHint.textContent = `Se generan desde 00 hasta el total indicado (máximo ${PRUEBA_MAX_NUMEROS} en el modo de prueba)`;
+  } else {
+    tituloInput.readOnly = false;
+    notaTitulo.style.display = 'none';
+    grupoTipo.style.display = '';
+    numerosInput.max = 10000;
+    numerosHint.textContent = 'Se generan desde 00 hasta el total indicado';
+  }
+}
+/* Deshabilita "Crear sorteo" cuando el modo de prueba ya usó su único sorteo permitido */
+function actualizarEstadoBotonNuevoSorteo(){
+  const btn = document.getElementById('btn-nuevo-sorteo');
+  if(!btn) return;
+  const agotado = modoPrueba && leerPruebaLocal() && leerPruebaLocal().sorteosCreados >= 1;
+  btn.classList.toggle('btn-deshabilitado', !!agotado);
+  btn.title = agotado ? 'Ya usaste tu sorteo de prueba. Compra un código para crear más.' : '';
+}
 document.getElementById('btn-nuevo-sorteo').addEventListener('click', ()=>{
+  if(modoPrueba){
+    const prueba = leerPruebaLocal();
+    if(prueba && prueba.sorteosCreados >= 1){
+      toast('Ya usaste tu sorteo de prueba. Compra un código para crear más.');
+      return;
+    }
+  }
   document.getElementById('f-titulo').value = '';
   document.getElementById('f-imagen').value = '';
   document.getElementById('img-preview-text').textContent = 'Haz clic para subir una imagen';
@@ -2154,6 +2409,7 @@ document.getElementById('btn-nuevo-sorteo').addEventListener('click', ()=>{
   document.getElementById('f-fecha').value = '';
   document.getElementById('f-fecha').min = todayISO();
   selectTipo('regular');
+  aplicarLimitesPruebaEnModal();
   openModal('modal-crear');
 });
 
@@ -2216,13 +2472,21 @@ document.getElementById('f-imagen').addEventListener('change', (e)=>{
 });
 
 document.getElementById('btn-guardar-sorteo').addEventListener('click', ()=>{
-  const titulo = document.getElementById('f-titulo').value.trim();
-  const tipo = document.getElementById('modal-crear').dataset.tipo || 'regular';
+  let titulo = document.getElementById('f-titulo').value.trim();
+  let tipo = document.getElementById('modal-crear').dataset.tipo || 'regular';
   const cantidadSeries = parseInt(document.getElementById('f-series').value, 10) || 1;
   const cantidadNumeros = parseInt(document.getElementById('f-numeros').value, 10);
   const fecha = document.getElementById('f-fecha').value;
   const imagen = document.getElementById('img-drop-zone').dataset.imgdata || null;
   const valorNumero = parseFloat(document.getElementById('f-valor').value) || 0;
+
+  if(modoPrueba){
+    const prueba = leerPruebaLocal();
+    if(prueba && prueba.sorteosCreados >= 1){ toast('Ya usaste tu sorteo de prueba. Compra un código para crear más.'); return; }
+    titulo = PRUEBA_TITULO; // el nombre es fijo en el modo de prueba, sin excepción
+    tipo = 'regular'; // sin series en el modo de prueba
+    if(cantidadNumeros > PRUEBA_MAX_NUMEROS){ errorCampo('f-numeros', `En el modo de prueba el máximo es ${PRUEBA_MAX_NUMEROS} números`); return; }
+  }
 
   if(!titulo){ toast('Ingresa el título del premio'); return; }
   if(!fecha){ toast('Selecciona la fecha del sorteo'); return; }
@@ -2234,6 +2498,12 @@ document.getElementById('btn-guardar-sorteo').addEventListener('click', ()=>{
   if(!valorNumero || valorNumero <= 0){ toast('Ingresa el valor por número'); return; }
 
   crearSorteo({titulo, imagen, tipo, cantidadSeries, cantidadNumeros, fecha, valorNumero});
+  if(modoPrueba){
+    const prueba = leerPruebaLocal() || iniciarPruebaLocal();
+    prueba.sorteosCreados = (prueba.sorteosCreados || 0) + 1;
+    guardarPruebaLocal(prueba);
+    actualizarEstadoBotonNuevoSorteo();
+  }
   closeModal('modal-crear');
   toast('Sorteo creado');
   renderHome();
@@ -2847,14 +3117,11 @@ function actualizarTooltipNumero(){
   grid.appendChild(tip);
 
   const gap = 8;
-  let arriba = true;
-  let top = btn.offsetTop - tip.offsetHeight - gap;
-  if(top < 0){ top = btn.offsetTop + btn.offsetHeight + gap; arriba = false; }
+  const top = btn.offsetTop - tip.offsetHeight - gap; // siempre hacia arriba del número
   let left = btn.offsetLeft + (btn.offsetWidth - tip.offsetWidth) / 2;
   left = Math.max(4, Math.min(left, grid.clientWidth - tip.offsetWidth - 4));
   tip.style.top = top + 'px';
   tip.style.left = left + 'px';
-  tip.classList.toggle('num-tooltip-abajo', !arriba);
 }
 
 /* Pequeña animación de "pop" sobre el número que se acaba de seleccionar/deseleccionar */
@@ -3675,16 +3942,54 @@ document.getElementById('btn-login-continuar').addEventListener('click', continu
 document.getElementById('btn-mi-licencia').addEventListener('click', abrirModalLicencia);
 document.getElementById('btn-licencia-nuevo-codigo').addEventListener('click', ()=>{ closeModal('modal-licencia'); borrarLicenciaLocal(); mostrarPantallaLogin(); });
 
+/* -- Modo de prueba: entrar sin código -- */
+document.getElementById('btn-login-prueba').addEventListener('click', async ()=>{
+  if(leerPruebaLocal()) return; // ya se usó en este dispositivo
+  const prueba = iniciarPruebaLocal();
+  modoPrueba = true;
+  ocultarPantallaLogin();
+  if(!appPrincipalIniciada) await iniciarAppPrincipal();
+  mostrarAvisoPruebaSiAplica(prueba);
+});
+
+/* -- Contacto para comprar un código: un botón que despliega correo / WhatsApp --
+   Se usa en dos lugares (pantalla de login y modal "Mi licencia"), por eso es una función reutilizable. */
+function configurarBotonContacto(idToggle, idOpciones, idLinkCorreo, idLinkWhatsapp){
+  const toggle = document.getElementById(idToggle);
+  const opciones = document.getElementById(idOpciones);
+  const linkCorreo = document.getElementById(idLinkCorreo);
+  const linkWhatsapp = document.getElementById(idLinkWhatsapp);
+  if(!toggle || !opciones) return;
+  toggle.addEventListener('click', ()=>{ opciones.hidden = !opciones.hidden; });
+  if(linkCorreo){
+    linkCorreo.href = 'mailto:' + CONTACTO_EMAIL + '?subject=' + encodeURIComponent('Quiero comprar un código') + '&body=' + encodeURIComponent(CONTACTO_MENSAJE);
+  }
+  if(linkWhatsapp){
+    linkWhatsapp.href = 'https://wa.me/' + CONTACTO_WHATSAPP + '?text=' + encodeURIComponent(CONTACTO_MENSAJE);
+  }
+}
+configurarBotonContacto('btn-login-contacto', 'login-contacto-opciones', 'link-contacto-correo', 'link-contacto-whatsapp');
+configurarBotonContacto('btn-licencia-contacto', 'licencia-contacto-opciones', 'link-licencia-contacto-correo', 'link-licencia-contacto-whatsapp');
+
 (async function initApp(){
   const lic = leerLicenciaLocal();
   if(licenciaVigente(lic)){
+    modoPrueba = false;
     ocultarPantallaLogin();
     await iniciarAppPrincipal();
     mostrarAvisoVencimientoSiAplica(lic);
     chequearLicenciaEnSegundoPlano(lic); // no bloquea: corre despues de pintar la app
-  } else {
-    mostrarPantallaLogin();
+    return;
   }
+  const prueba = leerPruebaLocal();
+  if(pruebaVigente(prueba)){
+    modoPrueba = true;
+    ocultarPantallaLogin();
+    await iniciarAppPrincipal();
+    mostrarAvisoPruebaSiAplica(prueba);
+    return;
+  }
+  mostrarPantallaLogin();
 })();
 </script>
 <script>
@@ -3794,14 +4099,17 @@ document.getElementById('btn-licencia-nuevo-codigo').addEventListener('click', (
   var CLAVE = 'gestor_sorteos_tema';
   var raiz = document.documentElement;
   var boton = document.getElementById('btn-tema');
+  var textoEl = document.getElementById('btn-tema-texto');
   function guardado(){ try{ var t = localStorage.getItem(CLAVE); return (t === 'light' || t === 'dark') ? t : null; }catch(e){ return null; } }
   function aplicar(tema){
     raiz.setAttribute('data-theme', tema);
+    if(window.GS_recalcularColorMarca) window.GS_recalcularColorMarca();
     if(!boton) return;
     var claro = tema === 'light';
     var texto = claro ? 'Cambiar a tema oscuro' : 'Cambiar a tema claro';
     boton.setAttribute('aria-label', texto);
     boton.setAttribute('title', texto);
+    if(textoEl) textoEl.textContent = texto;
   }
   aplicar(raiz.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
   if(boton) boton.addEventListener('click', function(){
@@ -3815,6 +4123,112 @@ document.getElementById('btn-licencia-nuevo-codigo').addEventListener('click', (
     var seguir = function(e){ if(!guardado()) aplicar(e.matches ? 'light' : 'dark'); };
     if(mq.addEventListener) mq.addEventListener('change', seguir); else if(mq.addListener) mq.addListener(seguir);
   }
+})();
+
+/* =========================================================
+   Menú de ajustes (hamburguesa): abre/cierra el panel con
+   Tema, Licencia y Respaldo.
+   ========================================================= */
+(function(){
+  var cont = document.getElementById('menu-ajustes');
+  var boton = document.getElementById('btn-menu-ajustes');
+  var panel = document.getElementById('menu-ajustes-panel');
+  if(!cont || !boton || !panel) return;
+  function abierto(){ return !panel.hidden; }
+  function abrir(){ panel.hidden = false; boton.setAttribute('aria-expanded', 'true'); }
+  function cerrar(){ panel.hidden = true; boton.setAttribute('aria-expanded', 'false'); }
+  boton.addEventListener('click', function(e){ e.stopPropagation(); if(abierto()) cerrar(); else abrir(); });
+  document.addEventListener('click', function(e){ if(abierto() && !cont.contains(e.target)) cerrar(); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && abierto()) cerrar(); });
+  // Licencia y Respaldo navegan a un modal: cerramos el menú al elegirlas
+  var licBtn = document.getElementById('btn-mi-licencia');
+  var resBtn = document.getElementById('btn-abrir-respaldo');
+  if(licBtn) licBtn.addEventListener('click', cerrar);
+  if(resBtn) resBtn.addEventListener('click', cerrar);
+})();
+
+/* =========================================================
+   Selector de color de marca. Solo UI: cambia los tonos del
+   acento (botones, pestaña activa, fondo de fichas, etc.) y
+   la preferencia vive en localStorage, fuera del respaldo JSON.
+   ========================================================= */
+(function(){
+  var CLAVE_COLOR = 'gestor_sorteos_color';
+  var COLOR_PREDETERMINADO = '#5b3df0';
+  var VARS = ['--primary','--primary-hover','--primary-dark','--primary-ink','--primary-tint','--primary-tint-border','--focus','--focus-ring'];
+  var raiz = document.documentElement;
+  var colorActual = COLOR_PREDETERMINADO;
+
+  function hexARgb(hex){
+    hex = String(hex || '').replace('#','').trim();
+    if(hex.length === 3) hex = hex.split('').map(function(c){ return c+c; }).join('');
+    var num = parseInt(hex, 16) || 0;
+    return {r:(num>>16)&255, g:(num>>8)&255, b:num&255};
+  }
+  function rgbAHex(c){
+    function h(v){ v = Math.round(Math.max(0, Math.min(255, v))); var s = v.toString(16); return s.length < 2 ? '0'+s : s; }
+    return '#'+h(c.r)+h(c.g)+h(c.b);
+  }
+  function mezclar(hexBase, hexObjetivo, cantidad){
+    var a = hexARgb(hexBase), b = hexARgb(hexObjetivo);
+    return rgbAHex({r:a.r+(b.r-a.r)*cantidad, g:a.g+(b.g-a.g)*cantidad, b:a.b+(b.b-a.b)*cantidad});
+  }
+  function rgba(hex, alpha){ var c = hexARgb(hex); return 'rgba('+c.r+','+c.g+','+c.b+','+alpha+')'; }
+
+  function calcularVariables(hex, temaClaro){
+    var hover = mezclar(hex, '#ffffff', 0.12);
+    var oscuro = mezclar(hex, '#000000', 0.18);
+    if(temaClaro){
+      return {
+        '--primary': hex, '--primary-hover': hover, '--primary-dark': oscuro,
+        '--primary-ink': mezclar(hex, '#000000', 0.12),
+        '--primary-tint': rgba(hex, 0.12), '--primary-tint-border': rgba(hex, 0.42),
+        '--focus': hex, '--focus-ring': rgba(hex, 0.22)
+      };
+    }
+    return {
+      '--primary': hex, '--primary-hover': hover, '--primary-dark': oscuro,
+      '--primary-ink': mezclar(hex, '#ffffff', 0.55),
+      '--primary-tint': rgba(mezclar(hex, '#ffffff', 0.2), 0.24),
+      '--primary-tint-border': rgba(mezclar(hex, '#ffffff', 0.3), 0.45),
+      '--focus': hex, '--focus-ring': rgba(hex, 0.22)
+    };
+  }
+
+  function marcarSwatchActivo(hex){
+    document.querySelectorAll('.color-marca-swatch').forEach(function(btn){
+      var es = (btn.dataset.color || '').toLowerCase() === hex.toLowerCase();
+      btn.classList.toggle('activo', es);
+    });
+  }
+
+  function aplicarColorMarca(hex, guardar){
+    hex = hex || COLOR_PREDETERMINADO;
+    colorActual = hex;
+    var esPredeterminado = hex.toLowerCase() === COLOR_PREDETERMINADO.toLowerCase();
+    if(esPredeterminado){
+      VARS.forEach(function(v){ raiz.style.removeProperty(v); });
+    } else {
+      var temaClaro = raiz.getAttribute('data-theme') === 'light';
+      var vals = calcularVariables(hex, temaClaro);
+      Object.keys(vals).forEach(function(k){ raiz.style.setProperty(k, vals[k]); });
+    }
+    if(guardar){
+      try{ if(esPredeterminado) localStorage.removeItem(CLAVE_COLOR); else localStorage.setItem(CLAVE_COLOR, hex); }catch(e){}
+    }
+    marcarSwatchActivo(hex);
+  }
+
+  var guardadoColor = COLOR_PREDETERMINADO;
+  try{ guardadoColor = localStorage.getItem(CLAVE_COLOR) || COLOR_PREDETERMINADO; }catch(e){}
+  aplicarColorMarca(guardadoColor, false);
+
+  document.querySelectorAll('.color-marca-swatch').forEach(function(btn){
+    btn.addEventListener('click', function(){ aplicarColorMarca(btn.dataset.color, true); });
+  });
+
+  // Recalcula ink/tint al cambiar de tema, para que el color elegido siga contrastando bien
+  window.GS_recalcularColorMarca = function(){ aplicarColorMarca(colorActual, false); };
 })();
 </script>
 </body>
