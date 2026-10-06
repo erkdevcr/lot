@@ -180,12 +180,19 @@ d.setAttribute('data-theme',t);})();
   }
 
   /* ---------- Barra superior ---------- */
+  /* Header de lado a lado (ya no es una card); el contenido interno se alinea con el ancho de la app */
   header.topbar{
-    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
-    gap:var(--space-4);padding:var(--space-2);padding-left:var(--space-2);
-    margin-bottom:var(--space-6);border-radius:var(--radius);box-shadow:var(--glass-shadow);
+    display:block;width:100%;padding:0;margin:0;
+    border-width:0 0 1px;border-radius:0;box-shadow:var(--glass-shadow);
   }
-  .brand{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-width:0;}
+  .topbar-inner{
+    display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);
+    max-width:1180px;margin:0 auto;padding:var(--space-3) var(--space-5);
+  }
+  /* Pestañas Sorteos / Archivados: fuera del header, al inicio del contenido */
+  .tabs-bar{margin-bottom:var(--space-5);}
+  .tabs-bar nav.tabs{display:inline-flex;}
+  .brand{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-width:0;margin-right:auto;}
   .brand-title{min-width:0;}
   .brand-actions{display:flex;align-items:center;gap:var(--space-2);}
   .brand-badge{
@@ -335,6 +342,7 @@ d.setAttribute('data-theme',t);})();
   .card-archivado .card-bg{filter:grayscale(.9) brightness(.92);}
   .card-archivado .badge-regular{background:rgba(148,142,169,.22);color:var(--muted);border-color:rgba(148,142,169,.4);}
   .card-archivado .winner-row:not(.winner-none){color:var(--muted);}
+  .card-archivado .winner-row{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;} /* una sola línea: misma altura que las fichas abiertas */
   .card-bg-icon{
     position:absolute;left:0;right:0;top:0;height:64px;display:flex;align-items:center;justify-content:center;
     color:rgba(255,255,255,.38);
@@ -730,13 +738,13 @@ d.setAttribute('data-theme',t);})();
 
   /* ---------- Responsive ---------- */
   @media (max-width:860px){
-    header.topbar{gap:var(--space-3);}
-    header.topbar nav.tabs{flex:1 1 100%;}
+    .tabs-bar nav.tabs{display:flex;}
     nav.tabs button{flex:1;}
   }
   @media (max-width:640px){
     .app{padding:var(--space-4) var(--space-4) var(--space-6);}
-    header.topbar{margin-bottom:var(--space-5);}
+    .topbar-inner{padding:var(--space-3) var(--space-4);}
+    .tabs-bar{margin-bottom:var(--space-4);}
     .two-col{grid-template-columns:1fr;gap:0;}
     .dash-header{flex-direction:column;padding:var(--space-4);gap:var(--space-4);}
     .dash-header > .dash-actions{position:static;}
@@ -847,8 +855,8 @@ d.setAttribute('data-theme',t);})();
     #num-modal-body > div:last-child{margin:var(--space-4) calc(-1 * var(--space-4)) calc(-1 * var(--space-4));padding:var(--space-3) var(--space-4);}
   }
   @media (max-width:520px){
-    /* Header muy angosto: el panel de ajustes no debe salirse de la pantalla */
-    .menu-ajustes-panel{left:auto;right:0;}
+    /* Header muy angosto: la solapa de ajustes ocupa casi todo el ancho */
+    .menu-ajustes-panel{width:88vw;}
   }
 
   /* =========================================================
@@ -941,6 +949,7 @@ d.setAttribute('data-theme',t);})();
   :root[data-theme="light"] .btn-secondary:hover{border-color:#5b3df0;}
 
   /* ---------- Menú de ajustes (hamburguesa): Tema / Licencia / Respaldo ---------- */
+  body.menu-ajustes-bloqueo{overflow:hidden;}
   .menu-ajustes{position:relative;}
   .menu-ajustes-trigger{
     flex:none;width:var(--control-h);height:var(--control-h);padding:0;
@@ -949,12 +958,33 @@ d.setAttribute('data-theme',t);})();
     background:var(--glass-bg-soft);color:var(--text);cursor:pointer;
   }
   .menu-ajustes-trigger:hover{background:var(--glass-bg-hover);border-color:var(--glass-border-hover);}
+  /* El menú se despliega como una solapa lateral (drawer) fija al borde derecho de la pantalla */
+  /* Ambos viven directamente en <body> (no dentro del header, que tiene backdrop-filter y los
+     encerraría), con z-index por encima de fichas, modales y barra de selección. Cerrados quedan
+     con visibility:hidden: no se ven, no reciben foco y no generan scroll horizontal. */
+  .menu-ajustes-overlay{
+    position:fixed;inset:0;z-index:900;background:rgba(12,8,24,.5);
+    opacity:0;visibility:hidden;pointer-events:none;
+    transition:opacity .25s ease, visibility 0s linear .25s;
+  }
+  .menu-ajustes-overlay.activo{opacity:1;visibility:visible;pointer-events:auto;transition:opacity .25s ease, visibility 0s;}
   .menu-ajustes-panel{
-    position:absolute;top:calc(100% + var(--space-2));left:0;z-index:30;
-    width:248px;max-width:calc(100vw - 32px);padding:var(--space-2);
-    display:flex;flex-direction:column;gap:var(--space-1);
-    background:var(--glass-bg-strong);border:1px solid var(--glass-border-strong);border-radius:var(--radius);
+    position:fixed;top:0;right:0;z-index:901;visibility:hidden;
+    width:300px;max-width:85vw;height:100vh;height:100dvh;
+    display:flex;flex-direction:column;
+    background:var(--glass-bg-strong);border-left:1px solid var(--glass-border-strong);
     box-shadow:var(--modal-shadow);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+    transform:translateX(100%);transition:transform .25s ease, visibility 0s linear .25s;pointer-events:none;
+  }
+  .menu-ajustes-panel.abierto{transform:translateX(0);visibility:visible;pointer-events:auto;transition:transform .25s ease, visibility 0s;}
+  .menu-ajustes-panel-header{
+    display:flex;align-items:center;justify-content:space-between;flex:none;
+    padding:var(--space-4);border-bottom:1px solid var(--divider);
+  }
+  .menu-ajustes-panel-header h3{margin:0;font-size:var(--fs-md);}
+  .menu-ajustes-panel-body{
+    flex:1 1 auto;overflow-y:auto;padding:var(--space-2) var(--space-3) var(--space-5);
+    display:flex;flex-direction:column;gap:var(--space-1);
   }
   .menu-ajustes-seccion{padding:var(--space-1) var(--space-1) var(--space-2);border-bottom:1px solid var(--divider);}
   .menu-ajustes-seccion:last-child{border-bottom:none;padding-bottom:var(--space-1);}
@@ -987,6 +1017,29 @@ d.setAttribute('data-theme',t);})();
   :root[data-theme="light"] .theme-toggle .theme-moon{opacity:1;transform:none;}
   @media (prefers-reduced-motion: reduce){
     .theme-toggle .theme-icon{transition:none;}
+  }
+  /* Color propio de una card de sorteo (si no tiene, manda el tema). Solo sorteos abiertos. */
+  .card-color,.dash-banner-color{
+    --primary:var(--c);--primary-dark:var(--c-dark);--primary-ink:var(--c-light);
+    --progress-fill:linear-gradient(90deg,var(--c),var(--c-light));
+  }
+  .card-color{--card-body-bg:linear-gradient(180deg,var(--c-bg1d),var(--c-bg2d));}
+  :root[data-theme="light"] .card-color{
+    --primary-ink:var(--c-dark);
+    --card-body-bg:linear-gradient(180deg,var(--c-bg1l),var(--c-bg2l));
+  }
+  :root[data-theme="light"] .dash-banner-color{--primary-ink:var(--c-dark);}
+  /* Selector de color de la card (crear / editar sorteo) */
+  .card-color-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);}
+  .card-color-swatch{
+    width:28px;height:28px;border-radius:50%;flex:none;cursor:pointer;padding:0;
+    background:var(--sw);border:2px solid transparent;box-shadow:0 0 0 1px var(--glass-border-strong);
+  }
+  .card-color-swatch:hover{box-shadow:0 0 0 1px var(--glass-border-hover);}
+  .card-color-swatch.activo{border-color:var(--text);box-shadow:0 0 0 1px var(--text);}
+  .card-color-swatch.card-color-tema{
+    --sw:linear-gradient(135deg,var(--primary) 50%,var(--glass-bg-soft) 50%);
+    background:var(--sw);
   }
   /* Selector de color de marca */
   .color-marca-row{display:flex;flex-wrap:wrap;gap:var(--space-2);padding:var(--space-2) var(--space-2) 0;}
@@ -1069,6 +1122,9 @@ d.setAttribute('data-theme',t);})();
   .numbers-grid.grid-diez .num-btn.selected::after{top:-6px;right:-6px;width:14px;height:14px;font-size:9px;line-height:14px;}
 
   /* 4) Imagen de números disponibles */
+  .numbers-descarga{grid-column:1 / -1;display:flex;justify-content:center;margin-top:var(--space-3);}
+  .numbers-descarga .btn-secondary{min-height:var(--control-h);}
+  @media (max-width:520px){ .numbers-descarga .btn-secondary{width:100%;justify-content:center;} }
   .disp-wrap{margin-top:var(--space-4);border-radius:var(--radius);padding:var(--space-5);
     background:var(--glass-bg);border:1px solid var(--glass-border);box-shadow:var(--glass-shadow);
     backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);}
@@ -1155,6 +1211,21 @@ d.setAttribute('data-theme',t);})();
     color:var(--text);border-radius:var(--radius-sm);padding:var(--space-4);margin-bottom:var(--space-4);}
   .login-card .btn-primary, .login-card .btn-secondary, .login-card .btn-danger{width:100%;justify-content:center;margin-top:var(--space-2);}
 
+  /* Popup de confirmación del login (suscripción / código en uso) */
+  .login-popup-overlay{
+    position:fixed;inset:0;z-index:1100;display:flex;align-items:center;justify-content:center;
+    padding:var(--space-5);background:rgba(12,8,24,.6);
+  }
+  .login-popup{
+    width:100%;max-width:380px;background:var(--glass-bg-solid);border:1px solid var(--glass-border-strong);
+    border-radius:var(--radius);box-shadow:var(--modal-shadow, var(--glass-shadow));padding:var(--space-5);
+  }
+  .login-popup h2{margin:0 0 var(--space-2);font-size:var(--fs-lg);}
+  .login-popup p{margin:0 0 var(--space-4);font-size:var(--fs-sm);line-height:1.6;color:var(--muted);}
+  .login-popup p b{color:var(--text);}
+  .login-popup-botones{display:flex;gap:var(--space-2);}
+  .login-popup-botones .btn-primary,.login-popup-botones .btn-secondary{flex:1;justify-content:center;margin:0;}
+
   .licencia-banner{
     display:none;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap;
     padding:var(--space-3) var(--space-4);margin:0 0 var(--space-4);border-radius:var(--radius-sm);
@@ -1216,6 +1287,17 @@ d.setAttribute('data-theme',t);})();
 </svg>
 
 <!-- PANTALLA DE ACCESO: bienvenida + código de licencia -->
+<div class="login-popup-overlay" id="login-popup" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="login-popup-titulo">
+  <div class="login-popup">
+    <h2 id="login-popup-titulo"></h2>
+    <p id="login-popup-texto"></p>
+    <div class="login-popup-botones">
+      <button type="button" class="btn-secondary" id="login-popup-cancelar">Cancelar</button>
+      <button type="button" class="btn-primary" id="login-popup-aceptar">Iniciar</button>
+    </div>
+  </div>
+</div>
+
 <div class="login-screen" id="pantalla-login" style="display:none;">
   <div class="login-card">
     <div class="login-logo"><svg class="icon"><use href="#icon-lock"></use></svg></div>
@@ -1227,6 +1309,18 @@ d.setAttribute('data-theme',t);})();
         <label for="login-codigo">Código de acceso</label>
         <input type="text" id="login-codigo" placeholder="Ej: ABCD-1234" autocomplete="off" autocapitalize="characters" spellcheck="false">
       </div>
+      <button class="btn-primary" id="btn-login-validar">Validar</button>
+      <div class="login-msg" id="login-msg"></div>
+
+      <button type="button" class="btn-secondary" id="btn-login-volver" style="display:none;margin-top:var(--space-3);">Volver a la app</button>
+
+      <div class="login-separador" id="login-prueba-separador"><span>o</span></div>
+      <button type="button" class="btn-secondary" id="btn-login-prueba">Probar gratis 15 días (sin código)</button>
+      <div class="login-prueba-nota" id="login-prueba-nota" style="display:none;">Ya usaste tu período de prueba en este dispositivo.</div>
+    </div>
+
+    <div id="login-paso-datos" style="display:none;">
+      <p class="login-sub" style="margin-bottom:var(--space-4);">Casi listo: dinos quién usará esta suscripción. Al continuar empieza la cuenta regresiva.</p>
       <div class="form-group">
         <label for="login-nombre">Tu nombre</label>
         <input type="text" id="login-nombre" placeholder="Nombre completo" autocomplete="name">
@@ -1235,12 +1329,9 @@ d.setAttribute('data-theme',t);})();
         <label for="login-telefono">Teléfono (opcional)</label>
         <input type="tel" id="login-telefono" placeholder="Ej: 8888-8888" autocomplete="tel">
       </div>
-      <button class="btn-primary" id="btn-login-validar">Ingresar</button>
-      <div class="login-msg" id="login-msg"></div>
-
-      <div class="login-separador" id="login-prueba-separador"><span>o</span></div>
-      <button type="button" class="btn-secondary" id="btn-login-prueba">Probar gratis 15 días (sin código)</button>
-      <div class="login-prueba-nota" id="login-prueba-nota" style="display:none;">Ya usaste tu período de prueba en este dispositivo.</div>
+      <button class="btn-primary" id="btn-login-activar">Activar y comenzar</button>
+      <button class="btn-secondary" id="btn-login-datos-cancelar">Cancelar</button>
+      <div class="login-msg" id="login-msg-datos"></div>
     </div>
 
     <div id="login-paso-otro-dispositivo" style="display:none;">
@@ -1269,56 +1360,30 @@ d.setAttribute('data-theme',t);})();
   </div>
 </div>
 
-<div class="app">
-
-  <header class="topbar">
+<header class="topbar">
+  <div class="topbar-inner">
     <div class="brand">
       <div class="brand-badge"><svg class="icon"><use href="#icon-ticket"></use></svg></div>
       <div class="brand-title">
         <h1>Gestor de Sorteos</h1>
       </div>
-      <div class="brand-actions">
-        <div class="menu-ajustes" id="menu-ajustes">
-          <button type="button" class="menu-ajustes-trigger" id="btn-menu-ajustes" aria-haspopup="true" aria-expanded="false" aria-label="Ajustes" title="Ajustes">
-            <svg class="icon"><use href="#icon-menu"></use></svg>
-          </button>
-          <div class="menu-ajustes-panel" id="menu-ajustes-panel" hidden>
-            <div class="menu-ajustes-seccion">
-              <div class="menu-ajustes-titulo">Tema</div>
-              <button type="button" class="theme-toggle" id="btn-tema" aria-label="Cambiar a tema claro" title="Cambiar a tema claro">
-                <span class="menu-tema-icono">
-                  <svg class="icon theme-icon theme-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.8v2.1M12 19.1v2.1M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M2.8 12h2.1M19.1 12h2.1M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5"/></svg>
-                  <svg class="icon theme-icon theme-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19.6 14.6A7.9 7.9 0 0 1 9.4 4.4a7.9 7.9 0 1 0 10.2 10.2Z"/></svg>
-                </span>
-                <span id="btn-tema-texto">Cambiar a tema claro</span>
-              </button>
-              <div class="color-marca-row" id="color-marca-row" role="group" aria-label="Color de marca">
-                <button type="button" class="color-marca-swatch" data-color="#5b3df0" style="--sw:#5b3df0" title="Morado (predeterminado)" aria-label="Morado (predeterminado)"></button>
-                <button type="button" class="color-marca-swatch" data-color="#2f6fed" style="--sw:#2f6fed" title="Azul" aria-label="Azul"></button>
-                <button type="button" class="color-marca-swatch" data-color="#0ea5a0" style="--sw:#0ea5a0" title="Turquesa" aria-label="Turquesa"></button>
-                <button type="button" class="color-marca-swatch" data-color="#1fa672" style="--sw:#1fa672" title="Verde" aria-label="Verde"></button>
-                <button type="button" class="color-marca-swatch" data-color="#f2873d" style="--sw:#f2873d" title="Naranja" aria-label="Naranja"></button>
-                <button type="button" class="color-marca-swatch" data-color="#e0469e" style="--sw:#e0469e" title="Rosado" aria-label="Rosado"></button>
-                <button type="button" class="color-marca-swatch" data-color="#e23b3b" style="--sw:#e23b3b" title="Rojo" aria-label="Rojo"></button>
-              </div>
-            </div>
-            <div class="menu-ajustes-seccion">
-              <div class="menu-ajustes-titulo">Licencia</div>
-              <button type="button" class="menu-ajustes-item" id="btn-mi-licencia" title="Ver mi licencia"><svg class="icon"><use href="#icon-lock"></use></svg><span>Ver mi licencia</span></button>
-            </div>
-            <div class="menu-ajustes-seccion">
-              <div class="menu-ajustes-titulo">Respaldo</div>
-              <button type="button" class="menu-ajustes-item" id="btn-abrir-respaldo" title="Exportar o importar una copia de seguridad"><svg class="icon"><use href="#icon-download"></use></svg><span>Exportar o importar copia</span></button>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
+    <div class="menu-ajustes" id="menu-ajustes">
+      <button type="button" class="menu-ajustes-trigger" id="btn-menu-ajustes" aria-haspopup="true" aria-expanded="false" aria-controls="menu-ajustes-panel" aria-label="Ajustes" title="Ajustes">
+        <svg class="icon"><use href="#icon-menu"></use></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="app">
+
+  <div class="tabs-bar" id="tabs-bar">
     <nav class="tabs">
       <button data-nav="home" class="active">Sorteos</button>
       <button data-nav="archivados">Archivados</button>
     </nav>
-  </header>
+  </div>
 
   <div class="licencia-banner" id="licencia-banner"></div>
 
@@ -1369,6 +1434,12 @@ d.setAttribute('data-theme',t);})();
           <div id="img-preview-text">Haz clic para subir una imagen</div>
           <input type="file" id="f-imagen" accept="image/*">
         </div>
+      </div>
+
+      <div class="form-group">
+        <label>Color de la card (opcional)</label>
+        <div class="card-color-row" id="f-color-row" role="group" aria-label="Color de la card"></div>
+        <div class="form-hint">Si no eliges un color, la card usa el del tema. Con imagen, el color se ve en la franja y la barra de progreso.</div>
       </div>
 
       <div class="form-group" id="grupo-tipo-sorteo">
@@ -1441,6 +1512,11 @@ d.setAttribute('data-theme',t);})();
       <div class="form-group">
         <label for="f-edit-titulo">Título del premio</label>
         <input type="text" id="f-edit-titulo" placeholder="Ej: iPhone 15 Pro, Canasta navideña...">
+      </div>
+      <div class="form-group">
+        <label>Color de la card</label>
+        <div class="card-color-row" id="f-edit-color-row" role="group" aria-label="Color de la card"></div>
+        <div class="form-hint">Sin color propio, la card usa el del tema.</div>
       </div>
       <div class="two-col">
         <div class="form-group">
@@ -1582,6 +1658,44 @@ d.setAttribute('data-theme',t);})();
   </div>
 </div>
 
+<!-- Solapa de ajustes: vive en <body> (fuera del header con backdrop-filter) para quedar por encima de todo -->
+<div class="menu-ajustes-overlay" id="menu-ajustes-overlay"></div>
+<div class="menu-ajustes-panel" id="menu-ajustes-panel" role="dialog" aria-modal="true" aria-label="Ajustes" aria-hidden="true">
+  <div class="menu-ajustes-panel-header">
+    <h3>Ajustes</h3>
+    <button type="button" class="close-x" id="btn-menu-ajustes-cerrar" aria-label="Cerrar"><svg class="icon"><use href="#icon-close"></use></svg></button>
+  </div>
+  <div class="menu-ajustes-panel-body">
+    <div class="menu-ajustes-seccion">
+      <div class="menu-ajustes-titulo">Tema</div>
+      <button type="button" class="theme-toggle" id="btn-tema" aria-label="Cambiar a tema claro" title="Cambiar a tema claro">
+        <span class="menu-tema-icono">
+          <svg class="icon theme-icon theme-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.8v2.1M12 19.1v2.1M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M2.8 12h2.1M19.1 12h2.1M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5"/></svg>
+          <svg class="icon theme-icon theme-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19.6 14.6A7.9 7.9 0 0 1 9.4 4.4a7.9 7.9 0 1 0 10.2 10.2Z"/></svg>
+        </span>
+        <span id="btn-tema-texto">Cambiar a tema claro</span>
+      </button>
+      <div class="color-marca-row" id="color-marca-row" role="group" aria-label="Color de marca">
+        <button type="button" class="color-marca-swatch" data-color="#5b3df0" style="--sw:#5b3df0" title="Morado (predeterminado)" aria-label="Morado (predeterminado)"></button>
+        <button type="button" class="color-marca-swatch" data-color="#2f6fed" style="--sw:#2f6fed" title="Azul" aria-label="Azul"></button>
+        <button type="button" class="color-marca-swatch" data-color="#0ea5a0" style="--sw:#0ea5a0" title="Turquesa" aria-label="Turquesa"></button>
+        <button type="button" class="color-marca-swatch" data-color="#1fa672" style="--sw:#1fa672" title="Verde" aria-label="Verde"></button>
+        <button type="button" class="color-marca-swatch" data-color="#f2873d" style="--sw:#f2873d" title="Naranja" aria-label="Naranja"></button>
+        <button type="button" class="color-marca-swatch" data-color="#e0469e" style="--sw:#e0469e" title="Rosado" aria-label="Rosado"></button>
+        <button type="button" class="color-marca-swatch" data-color="#e23b3b" style="--sw:#e23b3b" title="Rojo" aria-label="Rojo"></button>
+      </div>
+    </div>
+    <div class="menu-ajustes-seccion">
+      <div class="menu-ajustes-titulo">Licencia</div>
+      <button type="button" class="menu-ajustes-item" id="btn-mi-licencia" title="Ver mi licencia"><svg class="icon"><use href="#icon-lock"></use></svg><span>Ver mi licencia</span></button>
+    </div>
+    <div class="menu-ajustes-seccion">
+      <div class="menu-ajustes-titulo">Respaldo</div>
+      <button type="button" class="menu-ajustes-item" id="btn-abrir-respaldo" title="Exportar o importar una copia de seguridad"><svg class="icon"><use href="#icon-download"></use></svg><span>Exportar o importar copia</span></button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <div class="selection-bar" id="selection-bar">
@@ -1615,7 +1729,7 @@ const FINGERPRINT_KEY = 'sorteos_fingerprint_v1';
 let appPrincipalIniciada = false;
 
 /* ---------- Modo de prueba (sin código) ---------- */
-const PRUEBA_KEY = 'sorteos_prueba_v1'; // {inicio, sorteosCreados}
+const PRUEBA_KEY = 'sorteos_prueba_v1'; // {inicio} — la fecha real vive en la DB (tabla pruebas_dispositivo), esto es solo caché local
 const PRUEBA_DIAS = 15;
 const PRUEBA_MAX_NUMEROS = 25;
 const PRUEBA_TITULO = 'Sorteo de prueba';
@@ -1697,10 +1811,41 @@ function leerPruebaLocal(){
   catch(e){ return null; }
 }
 function guardarPruebaLocal(p){ try{ localStorage.setItem(PRUEBA_KEY, JSON.stringify(p)); }catch(e){} }
-function iniciarPruebaLocal(){
-  const p = { inicio: new Date().toISOString(), sorteosCreados: 0 };
+/* Registra (o recupera) el inicio del período de prueba para este dispositivo
+   en la base de datos, usando su fingerprint — así, aunque se borre el
+   localStorage, al volver a tocar "Probar gratis" en el mismo dispositivo el
+   servidor devuelve la fecha de inicio REAL (no la reinicia), y el período de
+   15 días sigue corriendo desde el primer uso. Si no hay red o Supabase no
+   está disponible, sigue funcionando solo localmente (igual que la licencia). */
+async function iniciarPruebaLocal(){
+  const fp = obtenerFingerprint();
+  let inicio = new Date().toISOString();
+  if(sb){
+    try{
+      const { data, error } = await sb.rpc('iniciar_prueba', { p_fingerprint: fp });
+      if(!error && data && data.fecha_inicio) inicio = data.fecha_inicio;
+    }catch(e){ console.warn('No se pudo registrar el dispositivo de prueba en el servidor; se usa solo localmente', e); }
+  }
+  const p = { inicio };
   guardarPruebaLocal(p);
   return p;
+}
+/* Chequeo silencioso (no bloquea, no cuenta como intento): confirma contra la
+   base de datos la fecha de inicio real de este dispositivo, por si el
+   localStorage quedó desactualizado. No se usa para iniciar la prueba, solo
+   para mantenerla sincronizada mientras está en curso. */
+function chequearPruebaEnSegundoPlano(prueba){
+  if(!sb || !prueba) return;
+  sb.rpc('consultar_prueba', { p_fingerprint: obtenerFingerprint() }).then(({data, error})=>{
+    if(error || !data || !data.existe) return;
+    const actual = leerPruebaLocal();
+    if(!actual) return; // ya no está en modo de prueba (p. ej. activó una licencia real)
+    if(data.fecha_inicio && data.fecha_inicio !== actual.inicio){
+      actual.inicio = data.fecha_inicio;
+      guardarPruebaLocal(actual);
+      if(modoPrueba) mostrarAvisoPruebaSiAplica(actual);
+    }
+  }).catch(()=>{});
 }
 function finDePrueba(prueba){
   const fin = new Date(prueba.inicio);
@@ -1715,26 +1860,55 @@ function pruebaVigente(prueba){
 }
 
 /* -- UI: pantalla de login -- */
+/* ¿Se puede cerrar la pantalla de login sin ingresar un código? Sí cuando la app ya está en uso con un
+   código vigente (o con una prueba vigente): así "Ingresar otro código" no deja a la persona atrapada. */
+function loginSePuedeCerrar(){
+  if(!appPrincipalIniciada) return false;
+  if(licenciaVigente(leerLicenciaLocal())) return true;
+  return !!(modoPrueba && pruebaVigente(leerPruebaLocal()));
+}
 function mostrarPantallaLogin(){
+  codigoEnCurso = null;
+  cerrarPopupLogin();
   mostrarPasoLogin('codigo');
   mensajeLogin('');
   actualizarBotonPrueba();
+  const volver = document.getElementById('btn-login-volver');
+  if(volver) volver.style.display = loginSePuedeCerrar() ? '' : 'none';
   document.getElementById('pantalla-login').style.display = 'flex';
 }
 function ocultarPantallaLogin(){
+  cerrarPopupLogin();
   document.getElementById('pantalla-login').style.display = 'none';
 }
 function mostrarPasoLogin(paso){
-  ['codigo', 'otro-dispositivo', 'exito'].forEach(p=>{
+  ['codigo', 'datos', 'otro-dispositivo', 'exito'].forEach(p=>{
     const el = document.getElementById('login-paso-' + p);
     if(el) el.style.display = (p === paso) ? 'block' : 'none';
   });
 }
 function mensajeLogin(texto, tipo){
-  const el = document.getElementById('login-msg');
-  if(!el) return;
-  el.textContent = texto || '';
-  el.className = 'login-msg' + (tipo ? ' login-msg-' + tipo : '');
+  ['login-msg', 'login-msg-datos'].forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.textContent = texto || '';
+    el.className = 'login-msg' + (tipo ? ' login-msg-' + tipo : '');
+  });
+}
+
+/* Popup de confirmación dentro de la pantalla de login */
+function mostrarPopupLogin({titulo, html, textoAceptar, onAceptar}){
+  const pop = document.getElementById('login-popup');
+  document.getElementById('login-popup-titulo').textContent = titulo;
+  document.getElementById('login-popup-texto').innerHTML = html;
+  document.getElementById('login-popup-aceptar').textContent = textoAceptar || 'Continuar';
+  pop.style.display = 'flex';
+  pop._onAceptar = onAceptar || null;
+}
+function cerrarPopupLogin(){
+  const pop = document.getElementById('login-popup');
+  pop.style.display = 'none';
+  pop._onAceptar = null;
 }
 /* Muestra "Probar gratis" solo si este dispositivo nunca usó el modo de prueba */
 function actualizarBotonPrueba(){
@@ -1743,12 +1917,15 @@ function actualizarBotonPrueba(){
   const nota = document.getElementById('login-prueba-nota');
   if(!btn) return;
   const yaUsada = !!leerPruebaLocal();
-  btn.style.display = yaUsada ? 'none' : '';
-  if(separador) separador.style.display = yaUsada ? 'none' : '';
-  if(nota) nota.style.display = yaUsada ? 'block' : 'none';
+  // Con un código activo no se ofrece la prueba gratis (no tiene sentido y pisaría el código vigente)
+  const conCodigoActivo = licenciaVigente(leerLicenciaLocal());
+  btn.style.display = (yaUsada || conCodigoActivo) ? 'none' : '';
+  if(separador) separador.style.display = (yaUsada || conCodigoActivo) ? 'none' : '';
+  if(nota) nota.style.display = (yaUsada && !conCodigoActivo) ? 'block' : 'none';
 }
 
-async function manejarEnvioLogin(forzar){
+async function manejarEnvioLogin(forzar, opciones){
+  const esDueno = !!(opciones && opciones.dueno); // código que ya tiene dueño: no se pide ni se cambia el nombre
   const codigoInput = document.getElementById('login-codigo');
   const nombreInput = document.getElementById('login-nombre');
   const telefonoInput = document.getElementById('login-telefono');
@@ -1761,7 +1938,7 @@ async function manejarEnvioLogin(forzar){
     nombre = (nombreInput.value || '').trim();
     telefono = (telefonoInput.value || '').trim();
     if(!codigo){ mensajeLogin('Ingresa tu código de acceso', 'error'); return; }
-    if(!nombre){ mensajeLogin('Ingresa tu nombre', 'error'); return; }
+    if(!nombre && !esDueno){ mensajeLogin('Ingresa tu nombre', 'error'); return; }
   }
 
   if(!sb){ mensajeLogin('No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.', 'error'); return; }
@@ -1813,10 +1990,72 @@ async function manejarEnvioLogin(forzar){
   codigoEnCurso = null;
 
   const meses = mesesDeTipoLicencia(resp.tipo);
-  document.getElementById('login-exito-msg').innerHTML =
-    `Gracias por comprar la aplicación. Usted tiene <b>${meses} mes${meses === 1 ? '' : 'es'}</b> para utilizarla.<br>` +
-    `La fecha de vencimiento es <b>${formatFechaCortaDDMMYY(vencISO)}</b>. Pasada esa fecha debe adquirir otra suscripción.`;
+  if(resp.motivo === 'activado'){
+    document.getElementById('login-exito-msg').innerHTML =
+      `Gracias por comprar la aplicación. Usted tiene <b>${meses} mes${meses === 1 ? '' : 'es'}</b> para utilizarla.<br>` +
+      `La fecha de vencimiento es <b>${formatFechaCortaDDMMYY(vencISO)}</b>. Pasada esa fecha debe adquirir otra suscripción.`;
+  } else {
+    const dias = diasRestantesLicencia(vencISO);
+    document.getElementById('login-exito-msg').innerHTML =
+      `Código verificado. Te quedan <b>${dias} día${dias === 1 ? '' : 's'}</b> de suscripción.<br>` +
+      `La fecha de vencimiento es <b>${formatFechaCortaDDMMYY(vencISO)}</b>.`;
+  }
   mostrarPasoLogin('exito');
+}
+
+/* Paso 1: "Validar". Solo consulta el código (no lo activa ni inicia la cuenta regresiva). */
+async function validarCodigoIngresado(){
+  const codigo = (document.getElementById('login-codigo').value || '').trim().toUpperCase();
+  if(!codigo){ mensajeLogin('Ingresa tu código de acceso', 'error'); return; }
+  if(!sb){ mensajeLogin('No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.', 'error'); return; }
+  const btn = document.getElementById('btn-login-validar');
+  if(btn) btn.disabled = true;
+  mensajeLogin('Verificando código...', 'info');
+  let info = null;
+  try{
+    const { data, error } = await sb.rpc('consultar_codigo', { p_codigo: codigo, p_fingerprint: obtenerFingerprint() });
+    if(error) throw error;
+    info = data;
+  }catch(e){
+    const msg = String((e && (e.message || e.code)) || '');
+    const funcionNoExiste = /PGRST202|42883|could not find the function/i.test(msg);
+    if(!funcionNoExiste){
+      console.warn('Error consultando código', e);
+      mensajeLogin('No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.', 'error');
+      if(btn) btn.disabled = false;
+      return;
+    }
+  }
+  if(btn) btn.disabled = false;
+  mensajeLogin('');
+
+  // Servidor sin la función consultar_codigo (SQL sin actualizar): flujo anterior, pide los datos directo
+  if(!info || typeof info.existe === 'undefined'){ mostrarPasoLogin('datos'); return; }
+
+  if(!info.existe){ mensajeLogin('Ese código no existe. Revísalo e intenta de nuevo.', 'error'); return; }
+  if(info.estado === 'dado_de_baja'){ mensajeLogin('Este código fue dado de baja. Contacta a quien te lo vendió para obtener uno nuevo.', 'error'); return; }
+
+  if(info.estado === 'sin_usar'){
+    // Código nuevo: confirmar antes de iniciar la cuenta regresiva
+    mostrarPopupLogin({
+      titulo: 'Suscripción de ' + tipoLicenciaLegible(info.tipo),
+      html: `Este código da acceso por <b>${tipoLicenciaLegible(info.tipo)}</b> (${info.duracion_dias} días). Al iniciar, <b>comienza la cuenta regresiva</b>. Si cancelas, el código no se activa.`,
+      textoAceptar: 'Iniciar',
+      onAceptar: () => { mostrarPasoLogin('datos'); }
+    });
+    return;
+  }
+
+  // estado 'activo': el código ya tiene dueño y cuenta regresiva
+  const dias = info.fecha_vencimiento ? diasRestantesLicencia(info.fecha_vencimiento) : 0;
+  if(dias <= 0){ mensajeLogin('Este código ya venció. Ingresa un código nuevo para continuar.', 'error'); return; }
+  const dueno = (info.nombre_cliente || '').trim();
+  mostrarPopupLogin({
+    titulo: 'Código en uso',
+    html: `Este código pertenece a <b>${dueno ? escapeHtml(dueno) : 'otro usuario'}</b>.<br>Días restantes: <b>${dias} día${dias === 1 ? '' : 's'}</b>.`,
+    textoAceptar: 'Continuar',
+    onAceptar: () => manejarEnvioLogin(false, {dueno: true})
+  });
 }
 
 async function continuarTrasLogin(){
@@ -1867,7 +2106,7 @@ function mostrarAvisoVencimientoSiAplica(lic){
     return;
   }
   const btn = document.getElementById('btn-ir-nuevo-codigo');
-  if(btn) btn.addEventListener('click', ()=>{ borrarLicenciaLocal(); mostrarPantallaLogin(); });
+  if(btn) btn.addEventListener('click', ()=> mostrarPantallaLogin());
 }
 
 /* Banner del modo de prueba: siempre visible mientras dure, con los días restantes */
@@ -1902,11 +2141,12 @@ function abrirModalLicencia(){
   } else if(modoPrueba){
     const prueba = leerPruebaLocal();
     const dias = prueba ? diasRestantesPrueba(prueba) : 0;
-    const sorteosCreados = prueba ? prueba.sorteosCreados : 0;
+    const abiertos = contarSorteosPruebaAbiertos();
+    const archivados = contarSorteosPruebaArchivados();
     info.innerHTML = '<p style="margin-top:0;">Estás en el <b>modo de prueba</b> (sin código).</p>' +
       `<p>${dias > 0 ? `Quedan <b>${dias} día${dias === 1 ? '' : 's'}</b>.` : 'Tu período de prueba terminó.'}</p>` +
-      `<p>Sorteos de prueba creados: <b>${sorteosCreados} de 1</b> (hasta ${PRUEBA_MAX_NUMEROS} números cada uno).</p>` +
-      '<p>Compra un código para quitar estos límites.</p>';
+      `<p>Sorteos de prueba: <b>${abiertos} de 1 abierto</b> y <b>${archivados} de 1 archivado</b> (hasta ${PRUEBA_MAX_NUMEROS} números cada uno).</p>` +
+      '<p>Puedes borrar o archivar el sorteo actual para crear otro. Compra un código para quitar estos límites.</p>';
   } else {
     info.innerHTML = '<p style="margin-top:0;">No se encontró información de licencia.</p>';
   }
@@ -2126,7 +2366,48 @@ function errorCampo(campoId, msg){
 }
 
 /* ---------- Construcción de sorteos ---------- */
-function crearSorteo({titulo, imagen, tipo, cantidadSeries, cantidadNumeros, fecha, valorNumero}){
+/* ---------- Color propio de la card de un sorteo ---------- */
+const COLORES_CARD = [
+  {hex:'#5b3df0', nombre:'Morado'}, {hex:'#2f6fed', nombre:'Azul'}, {hex:'#0ea5a0', nombre:'Turquesa'},
+  {hex:'#1fa672', nombre:'Verde'}, {hex:'#f2873d', nombre:'Naranja'}, {hex:'#e0469e', nombre:'Rosado'},
+  {hex:'#e23b3b', nombre:'Rojo'}, {hex:'#475569', nombre:'Gris azulado'}
+];
+function colorCardValido(c){ return typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c); }
+function mezclarHexCard(a, b, t, alfa){
+  const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const x = p(a), y = p(b);
+  const m = x.map((v, i) => Math.round(v + (y[i] - v) * t));
+  return alfa === undefined ? '#' + m.map(v => v.toString(16).padStart(2, '0')).join('') : `rgba(${m[0]},${m[1]},${m[2]},${alfa})`;
+}
+/* Devuelve {clase, estilo} para una card/banner con color propio; vacío si el sorteo no tiene (gana el tema) */
+function colorCardAttrs(s, claseBase){
+  if(!s || s.archivado || !colorCardValido(s.color)) return {clase: '', estilo: ''};
+  const c = s.color;
+  const vars = {
+    '--c': c, '--c-dark': mezclarHexCard(c, '#000000', .25), '--c-light': mezclarHexCard(c, '#ffffff', .55),
+    '--c-bg1d': mezclarHexCard(c, '#140e28', .58, .86), '--c-bg2d': mezclarHexCard(c, '#0e091e', .68, .93),
+    '--c-bg1l': mezclarHexCard(c, '#ffffff', .82, .92), '--c-bg2l': mezclarHexCard(c, '#ffffff', .90, .96)
+  };
+  return {clase: ' ' + claseBase, estilo: ' style="' + Object.keys(vars).map(k => k + ':' + vars[k]).join(';') + '"'};
+}
+/* Selector de color: botón "Tema" (sin color propio) + paleta. Guarda el valor en row.dataset.valor ('' = tema) */
+function iniciarSelectorColorCard(row){
+  if(!row) return {get: () => '', set: () => {}};
+  row.innerHTML = `<button type="button" class="card-color-swatch card-color-tema activo" data-color="" title="Color del tema" aria-label="Color del tema"></button>`
+    + COLORES_CARD.map(o => `<button type="button" class="card-color-swatch" data-color="${o.hex}" style="--sw:${o.hex}" title="${o.nombre}" aria-label="${o.nombre}"></button>`).join('');
+  function set(v){
+    v = colorCardValido(v) ? v.toLowerCase() : '';
+    row.dataset.valor = v;
+    row.querySelectorAll('.card-color-swatch').forEach(b => b.classList.toggle('activo', b.dataset.color === v));
+  }
+  row.querySelectorAll('.card-color-swatch').forEach(b => b.addEventListener('click', () => set(b.dataset.color)));
+  set('');
+  return {get: () => row.dataset.valor || '', set};
+}
+const selectorColorCrear = iniciarSelectorColorCard(document.getElementById('f-color-row'));
+const selectorColorEditar = iniciarSelectorColorCard(document.getElementById('f-edit-color-row'));
+
+function crearSorteo({titulo, imagen, tipo, cantidadSeries, cantidadNumeros, fecha, valorNumero, color}){
   const digitos = digitsFor(cantidadNumeros);
   const series = tipo === 'series' ? cantidadSeries : 1;
   const numeros = [];
@@ -2148,6 +2429,7 @@ function crearSorteo({titulo, imagen, tipo, cantidadSeries, cantidadNumeros, fec
     id: uid(),
     titulo: titulo.trim(),
     imagen: imagen || null,
+    color: colorCardValido(color) ? color.toLowerCase() : null, // color propio de la card; null = el del tema
     fechaSorteo: fecha,
     tipo,
     cantidadSeries: series,
@@ -2206,6 +2488,8 @@ function showView(name){
   });
   const topbar = document.querySelector('header.topbar');
   if(topbar) topbar.style.display = (name === 'dashboard') ? 'none' : '';
+  const tabsBar = document.getElementById('tabs-bar');
+  if(tabsBar) tabsBar.style.display = (name === 'dashboard') ? 'none' : '';
   // Reinicia la animación de entrada de la vista (aunque ya tuviera la clase antes)
   view.classList.remove('view-animar');
   void view.offsetWidth;
@@ -2291,6 +2575,7 @@ function animarEntradaTarjetas(cont){
 
 /* ---------- RENDER: ARCHIVADOS (pestaña, solo lectura) ---------- */
 function renderArchivadosTab(){
+  actualizarEstadoBotonNuevoSorteo();
   const cont = document.getElementById('archivados-content');
   const archivados = state.sorteos.filter(s => s.archivado);
   if(archivados.length === 0){
@@ -2310,8 +2595,9 @@ function cardSorteoHTML(s){
   const stats = statsDe(s);
   const cd = countdownBadge(s.fechaSorteo);
   const bgStyle = s.imagen ? ` style="background-image:url('${escapeAttr(s.imagen)}')"` : '';
+  const col = colorCardAttrs(s, 'card-color');
   return `
-  <div class="card card-abierto" data-open-dash="${s.id}">
+  <div class="card card-abierto${col.clase}"${col.estilo} data-open-dash="${s.id}">
     <div class="card-bg"${bgStyle}>${!s.imagen ? `<span class="card-bg-icon">${icon('gift')}</span>` : ''}</div>
     <div class="card-scrim"></div>
     <div class="card-body">
@@ -2336,7 +2622,7 @@ function cardArchivadoHTML(s){
   const recaudado = totalRecaudado(s, stats);
   const bgStyle = s.imagen ? ` style="background-image:url('${escapeAttr(s.imagen)}')"` : '';
   const ganadorHtml = s.ganador
-    ? `<div class="winner-row">${icon('trophy')} N° ganador: ${s.ganador.numero}${s.tipo==='series' ? ' (Serie '+s.ganador.serie+')' : ''}<br>${s.ganador.nombre ? 'Ganador: '+escapeHtml(s.ganador.nombre) : 'Sin comprador registrado'}</div>`
+    ? `<div class="winner-row">${icon('trophy')} N° ganador: ${s.ganador.numero}${s.tipo==='series' ? ' (Serie '+s.ganador.serie+')' : ''} - ${s.ganador.nombre ? 'Ganador: '+escapeHtml(s.ganador.nombre) : 'Sin comprador registrado'}</div>`
     : `<div class="winner-row winner-none">Sin ganador</div>`;
   return `
   <div class="card card-archivado" data-open-dash="${s.id}">
@@ -2357,9 +2643,21 @@ function cardArchivadoHTML(s){
   </div>`;
 }
 
+/* ---------- Modo de prueba: límites de cuántos sorteos puede haber ----------
+   No es un tope de por vida: el sorteo de prueba se puede borrar o archivar y
+   crear otro, pero nunca puede haber más de 1 ABIERTO y más de 1 ARCHIVADO al
+   mismo tiempo (solo se cuentan los sorteos marcados como `.prueba`, creados
+   mientras modoPrueba estaba activo). */
+function contarSorteosPruebaAbiertos(){
+  return state.sorteos.filter(s => s.prueba && !s.archivado).length;
+}
+function contarSorteosPruebaArchivados(){
+  return state.sorteos.filter(s => s.prueba && s.archivado).length;
+}
+
 /* ---------- Crear sorteo: wiring del modal ---------- */
 /* En modo de prueba: nombre fijo, sin series, máximo PRUEBA_MAX_NUMEROS números, y no se puede
-   abrir el formulario si ya se usó el único sorteo de prueba permitido. */
+   abrir el formulario si ya hay un sorteo de prueba abierto (hay que borrarlo o archivarlo primero). */
 function aplicarLimitesPruebaEnModal(){
   const tituloInput = document.getElementById('f-titulo');
   const notaTitulo = document.getElementById('f-titulo-nota-prueba');
@@ -2383,21 +2681,18 @@ function aplicarLimitesPruebaEnModal(){
     numerosHint.textContent = 'Se generan desde 00 hasta el total indicado';
   }
 }
-/* Deshabilita "Crear sorteo" cuando el modo de prueba ya usó su único sorteo permitido */
+/* Deshabilita "Crear sorteo" cuando el modo de prueba ya tiene un sorteo abierto */
 function actualizarEstadoBotonNuevoSorteo(){
   const btn = document.getElementById('btn-nuevo-sorteo');
   if(!btn) return;
-  const agotado = modoPrueba && leerPruebaLocal() && leerPruebaLocal().sorteosCreados >= 1;
+  const agotado = modoPrueba && contarSorteosPruebaAbiertos() >= 1;
   btn.classList.toggle('btn-deshabilitado', !!agotado);
-  btn.title = agotado ? 'Ya usaste tu sorteo de prueba. Compra un código para crear más.' : '';
+  btn.title = agotado ? 'Ya tienes un sorteo de prueba abierto. Archívalo o bórralo para crear otro.' : '';
 }
 document.getElementById('btn-nuevo-sorteo').addEventListener('click', ()=>{
-  if(modoPrueba){
-    const prueba = leerPruebaLocal();
-    if(prueba && prueba.sorteosCreados >= 1){
-      toast('Ya usaste tu sorteo de prueba. Compra un código para crear más.');
-      return;
-    }
+  if(modoPrueba && contarSorteosPruebaAbiertos() >= 1){
+    toast('Ya tienes un sorteo de prueba abierto. Archívalo o bórralo para crear otro.');
+    return;
   }
   document.getElementById('f-titulo').value = '';
   document.getElementById('f-imagen').value = '';
@@ -2408,6 +2703,7 @@ document.getElementById('btn-nuevo-sorteo').addEventListener('click', ()=>{
   document.getElementById('f-valor').value = '';
   document.getElementById('f-fecha').value = '';
   document.getElementById('f-fecha').min = todayISO();
+  selectorColorCrear.set('');
   selectTipo('regular');
   aplicarLimitesPruebaEnModal();
   openModal('modal-crear');
@@ -2481,8 +2777,7 @@ document.getElementById('btn-guardar-sorteo').addEventListener('click', ()=>{
   const valorNumero = parseFloat(document.getElementById('f-valor').value) || 0;
 
   if(modoPrueba){
-    const prueba = leerPruebaLocal();
-    if(prueba && prueba.sorteosCreados >= 1){ toast('Ya usaste tu sorteo de prueba. Compra un código para crear más.'); return; }
+    if(contarSorteosPruebaAbiertos() >= 1){ toast('Ya tienes un sorteo de prueba abierto. Archívalo o bórralo para crear otro.'); return; }
     titulo = PRUEBA_TITULO; // el nombre es fijo en el modo de prueba, sin excepción
     tipo = 'regular'; // sin series en el modo de prueba
     if(cantidadNumeros > PRUEBA_MAX_NUMEROS){ errorCampo('f-numeros', `En el modo de prueba el máximo es ${PRUEBA_MAX_NUMEROS} números`); return; }
@@ -2497,11 +2792,10 @@ document.getElementById('btn-guardar-sorteo').addEventListener('click', ()=>{
   if(cantidadNumeros > 10000){ toast('Cantidad de números demasiado alta'); return; }
   if(!valorNumero || valorNumero <= 0){ toast('Ingresa el valor por número'); return; }
 
-  crearSorteo({titulo, imagen, tipo, cantidadSeries, cantidadNumeros, fecha, valorNumero});
+  const nuevoSorteo = crearSorteo({titulo, imagen, tipo, cantidadSeries, cantidadNumeros, fecha, valorNumero, color: selectorColorCrear.get()});
   if(modoPrueba){
-    const prueba = leerPruebaLocal() || iniciarPruebaLocal();
-    prueba.sorteosCreados = (prueba.sorteosCreados || 0) + 1;
-    guardarPruebaLocal(prueba);
+    nuevoSorteo.prueba = true; // marca este sorteo como creado en modo de prueba, para contarlo
+    saveState();
     actualizarEstadoBotonNuevoSorteo();
   }
   closeModal('modal-crear');
@@ -2530,6 +2824,7 @@ function renderDashboard(){
   const cd = countdownBadge(sorteo.fechaSorteo);
   const soloLectura = !!sorteo.archivado;
 
+  const colorBanner = colorCardAttrs(sorteo, 'dash-banner-color');
   const bannerBgStyle = sorteo.imagen ? ` style="background-image:url('${escapeAttr(sorteo.imagen)}')"` : '';
 
   let seriesTabsHtml = '';
@@ -2569,7 +2864,7 @@ function renderDashboard(){
       <button data-dashtab="descargas" class="${currentDashTab==='descargas'?'active':''}">${icon('download')}<span>Descargas</span></button>
     </nav>
 
-    <div class="dash-banner${animarEntrada ? ' anim-up-d1' : ''}">
+    <div class="dash-banner${animarEntrada ? ' anim-up-d1' : ''}${colorBanner.clase}"${colorBanner.estilo}>
       <div class="dash-banner-bg"${bannerBgStyle}>${!sorteo.imagen ? `<span class="dash-banner-icon">${icon('gift')}</span>` : ''}</div>
       <div class="dash-banner-scrim"></div>
       <div class="dash-banner-sizer" aria-hidden="true"><div class="dbs-title">${escapeHtml(sorteo.titulo)}</div><div class="dbs-fecha">${formatFechaLarga(sorteo.fechaSorteo)}</div></div>
@@ -2655,7 +2950,15 @@ function renderDashboard(){
   const btnArchivar = document.getElementById('dash-btn-archivar');
   if(btnArchivar) btnArchivar.addEventListener('click', ()=>{
     if(sorteo.archivado){
+      if(modoPrueba && sorteo.prueba && contarSorteosPruebaAbiertos() >= 1){
+        toast('Ya tienes un sorteo de prueba abierto. Archívalo o bórralo para poder restaurar este.');
+        return;
+      }
       abrirModalRestaurar(sorteo);
+      return;
+    }
+    if(modoPrueba && sorteo.prueba && contarSorteosPruebaArchivados() >= 1){
+      toast('Ya tienes un sorteo de prueba archivado. Bórralo para poder archivar otro.');
       return;
     }
     abrirModalGanador(sorteo);
@@ -2702,6 +3005,7 @@ function renderDashboard(){
 
 /* ---------- Contenido de cada sub-pestaña dentro del sorteo ---------- */
 function renderDashTabContent(sorteo){
+  const soloLectura = !!sorteo.archivado; // archivado: sin imagen de disponibles
   const cont = document.getElementById('dash-tab-content');
   if(!cont) return;
 
@@ -2731,6 +3035,7 @@ function renderDashTabContent(sorteo){
           ${!esSeries ? `<button class="btn-secondary" id="btn-descargar-imagen">${icon('download')} Descargar lista (.png)</button>` : ''}
         </div>
       </div>
+      ${!soloLectura ? `
       <section class="disp-wrap" aria-labelledby="disp-titulo">
         <h3 class="disp-titulo" id="disp-titulo">Imagen de números disponibles</h3>
         <p class="form-hint disp-hint">Para compartir: los números en filas de 10, con los que ya no están disponibles en gris. No incluye nombres ni teléfonos.</p>
@@ -2741,12 +3046,13 @@ function renderDashTabContent(sorteo){
         </div>
         <div class="disp-preview"><canvas id="disp-canvas" role="img"></canvas></div>
       </section>
+      ` : ''}
     `;
     document.getElementById('btn-descargar-excel').addEventListener('click', ()=> descargarExcelSorteo(sorteo));
     if(!esSeries){
       document.getElementById('btn-descargar-imagen').addEventListener('click', ()=> descargarImagenSorteo(sorteo));
     }
-    iniciarImagenDisponibles(sorteo);
+    if(!soloLectura) iniciarImagenDisponibles(sorteo);
     return;
   }
 
@@ -2931,24 +3237,32 @@ function numeroAsignadoMasAlto(sorteo){
 }
 function abrirModalEditar(sorteo){
   const esSeries = sorteo.tipo === 'series';
+  const esPrueba = modoPrueba && !!sorteo.prueba; // evita usar "editar" para saltarse los límites del modo de prueba
   const alto = numeroAsignadoMasAlto(sorteo);
   const minimo = Math.max(2, alto ? alto.valor + 1 : 2);
   const fNumeros = document.getElementById('f-edit-numeros');
-  document.getElementById('f-edit-titulo').value = sorteo.titulo;
+  const fTitulo = document.getElementById('f-edit-titulo');
+  fTitulo.value = sorteo.titulo;
+  fTitulo.readOnly = esPrueba;
+  fTitulo.title = esPrueba ? 'El nombre queda fijo en el modo de prueba' : '';
   document.getElementById('f-edit-valor').value = sorteo.valorNumero || '';
+  selectorColorEditar.set(sorteo.color || '');
   fNumeros.value = sorteo.cantidadNumeros;
   fNumeros.min = String(minimo);
+  fNumeros.max = esPrueba ? PRUEBA_MAX_NUMEROS : 10000;
   document.getElementById('edit-numeros-hint').textContent =
     (alto ? `Mínimo ${minimo}: el número asignado más alto es el ${alto.numero}${esSeries ? ' (Serie ' + alto.serie + ')' : ''}.` : 'Se generan desde 00 hasta el total indicado.')
-    + (esSeries ? ` Se aplica a cada una de las ${sorteo.cantidadSeries} series.` : '');
+    + (esSeries ? ` Se aplica a cada una de las ${sorteo.cantidadSeries} series.` : '')
+    + (esPrueba ? ` Máximo ${PRUEBA_MAX_NUMEROS} en el modo de prueba.` : '');
   openModal('modal-editar');
 
   document.getElementById('btn-guardar-edicion').onclick = ()=>{
-    const titulo = document.getElementById('f-edit-titulo').value.trim();
+    const titulo = esPrueba ? PRUEBA_TITULO : document.getElementById('f-edit-titulo').value.trim();
     const cantidad = parseInt(fNumeros.value, 10);
     const valor = parseFloat(document.getElementById('f-edit-valor').value) || 0;
     if(!titulo){ errorCampo('f-edit-titulo', 'Ingresa el título del premio'); return; }
     if(!cantidad || cantidad < 2){ errorCampo('f-edit-numeros', 'Ingresa una cantidad de números válida'); return; }
+    if(esPrueba && cantidad > PRUEBA_MAX_NUMEROS){ errorCampo('f-edit-numeros', `En el modo de prueba el máximo es ${PRUEBA_MAX_NUMEROS} números`); return; }
     if(cantidad > 10000){ errorCampo('f-edit-numeros', 'Cantidad de números demasiado alta'); return; }
     const altoAhora = numeroAsignadoMasAlto(sorteo);
     if(altoAhora && cantidad <= altoAhora.valor){
@@ -2958,6 +3272,7 @@ function abrirModalEditar(sorteo){
     if(!valor || valor <= 0){ errorCampo('f-edit-valor', 'Ingresa el valor por número'); return; }
     sorteo.titulo = titulo;
     sorteo.valorNumero = valor;
+    sorteo.color = selectorColorEditar.get() || null;
     if(cantidad !== sorteo.cantidadNumeros) redimensionarSorteo(sorteo, cantidad);
     saveState();
     closeModal('modal-editar');
@@ -3064,7 +3379,11 @@ function renderNumbersGrid(sorteo, filtro){
     const sel = selectedNumbers.has(n.numero) ? 'selected' : '';
     const ro = soloLectura ? 'readonly' : '';
     return `<button class="num-btn ${cls} ${sel} ${ro}" data-numero="${n.numero}" title="${n.estado === 'disponible' ? 'Disponible' : escapeHtml(n.comprador||'')}">${n.numero}</button>`;
-  }).join('');
+  }).join('') + (soloLectura ? '' : `<div class="numbers-descarga">
+    <button type="button" class="btn-secondary" id="btn-descargar-disponibles-grid" title="Descarga una imagen con los números disponibles, con los colores del tema actual">${icon('download')} Descargar números disponibles</button>
+  </div>`);
+  const btnDescarga = document.getElementById('btn-descargar-disponibles-grid');
+  if(btnDescarga) btnDescarga.addEventListener('click', () => descargarDisponiblesDesdeGrilla(sorteo));
   aplicarTamanoGrid();
   grid.querySelectorAll('.num-btn').forEach(btn=>{
     if(soloLectura){
@@ -3806,11 +4125,33 @@ function dispRect(ctx, x, y, w, h, r){
   ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
   ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
+/* Paleta de la imagen de disponibles: sigue el tema activo (claro/oscuro) y el color de marca elegido.
+   Los no disponibles se dibujan casi invisibles (gris translúcido que se funde con el fondo). */
+function paletaImagenDisponibles(){
+  const raiz = document.documentElement;
+  const claro = raiz.getAttribute('data-theme') === 'light';
+  let cs = null;
+  try{ cs = getComputedStyle(raiz); }catch(e){}
+  const hex = (nombre, defecto) => {
+    const v = cs ? (cs.getPropertyValue(nombre) || '').trim() : '';
+    return /^#[0-9a-fA-F]{6}$/.test(v) ? v : defecto;
+  };
+  const marca = hex('--primary', '#5b3df0');
+  if(claro){
+    return {claro:true, bg:hex('--page-bg', '#f3eeff'), acento1:marca, acento2:hex('--primary-hover', marca),
+      texto:'#1f1a33', texto2:'#4a4560', marca:hex('--primary-ink', '#4a2fd6'),
+      libreBorde:marca, libreFondo:'#ffffff',
+      ocupadoFondo:'rgba(110,100,135,0.09)', ocupadoTexto:'rgba(110,100,135,0.30)', pie:'#5f5a72'};
+  }
+  return {claro:false, bg:hex('--page-bg', '#1b1033'), acento1:marca, acento2:hex('--primary-hover', marca),
+    texto:'#f7f5ff', texto2:'rgba(247,245,255,0.78)', marca:hex('--primary-ink', '#cbbfff'),
+    libreBorde:'rgba(255,255,255,0.55)', libreFondo:'rgba(255,255,255,0.10)',
+    ocupadoFondo:'rgba(255,255,255,0.035)', ocupadoTexto:'rgba(255,255,255,0.14)', pie:'rgba(247,245,255,0.55)'};
+}
 function dibujarImagenDisponibles(canvas, sorteo, serie, tramo, todos, rotuloTramo){
   const W = 1080, PAD = 56, COLS = 10, GAP = 10, CELL_H = 64, R = 12;
   const CELL_W = (W - PAD * 2 - GAP * (COLS - 1)) / COLS;
-  const C = {bg:'#faf8ff', acento1:'#5b3df0', acento2:'#8b70ff', texto:'#1f1a33', texto2:'#4a4560',
-             marca:'#4a2fd6', libreBorde:'#5b3df0', libreFondo:'#ffffff', ocupadoFondo:'#c7c0dc', ocupadoTexto:'#352e4d', pie:'#5f5a72'};
+  const C = paletaImagenDisponibles();
   const ctx = canvas.getContext('2d');
   ctx.font = `700 46px ${DISP_FUENTE}`;
   const lineasTitulo = dispPartirTexto(ctx, sorteo.titulo, W - PAD * 2, 2);
@@ -3884,6 +4225,36 @@ function dibujarImagenDisponibles(canvas, sorteo, serie, tramo, todos, rotuloTra
 
   canvas.setAttribute('aria-label', `Imagen de números disponibles${serie !== null ? ', serie ' + serie : ''}: ${disponibles} de ${todos.length} disponibles` + (rotuloTramo ? `, números ${rotuloTramo}` : ''));
 }
+/* Genera las imágenes (una por cada tramo de DISP_POR_IMAGEN números) de la serie indicada, sin tocar el DOM */
+function generarImagenesDisponibles(sorteo, serie){
+  const esSeries = sorteo.tipo === 'series';
+  const nums = sorteo.numeros.filter(n => n.serie === serie).slice().sort((a, b) => a.numero.localeCompare(b.numero));
+  const partes = Math.max(1, Math.ceil(nums.length / DISP_POR_IMAGEN));
+  const salida = [];
+  for(let i = 0; i < partes; i++){
+    const tramo = nums.slice(i * DISP_POR_IMAGEN, (i + 1) * DISP_POR_IMAGEN);
+    if(!tramo.length) continue;
+    const rotulo = partes > 1 ? `${tramo[0].numero}–${tramo[tramo.length - 1].numero}` : '';
+    const canvas = document.createElement('canvas');
+    dibujarImagenDisponibles(canvas, sorteo, esSeries ? serie : null, tramo, nums, rotulo);
+    const archivo = `${nombreArchivoSorteo(sorteo, 'disponibles')}${esSeries ? '-serie-' + serie : ''}${rotulo ? '-' + rotulo.replace('–', '-') : ''}.png`;
+    salida.push({canvas, archivo});
+  }
+  return salida;
+}
+/* Botón bajo la grilla: descarga la imagen de disponibles de la serie que se está viendo, con los colores del tema */
+async function descargarDisponiblesDesdeGrilla(sorteo){
+  const serie = sorteo.tipo === 'series' ? (currentSerie || 1) : 1;
+  const imagenes = generarImagenesDisponibles(sorteo, serie);
+  if(!imagenes.length){ toast('No hay números para descargar'); return; }
+  toast(imagenes.length > 1 ? `Descargando ${imagenes.length} imágenes...` : 'Descargando imagen...');
+  for(let i = 0; i < imagenes.length; i++){
+    const blob = await new Promise(res => imagenes[i].canvas.toBlob(res, 'image/png'));
+    if(!blob){ toast('No se pudo generar la imagen'); return; }
+    descargarBlob(blob, imagenes[i].archivo);
+    if(i < imagenes.length - 1) await new Promise(res => setTimeout(res, 400));
+  }
+}
 function iniciarImagenDisponibles(sorteo){
   const canvas = document.getElementById('disp-canvas');
   if(!canvas) return;
@@ -3915,6 +4286,7 @@ function iniciarImagenDisponibles(sorteo){
   if(selSerie) selSerie.addEventListener('change', () => { tramos(); dibujar(); });
   selRango.addEventListener('change', dibujar);
   document.getElementById('btn-descargar-disponibles').addEventListener('click', () => {
+    dibujar(); // por si cambió el tema o el color de marca desde que se dibujó la vista previa
     canvas.toBlob(blob => {
       if(!blob){ toast('No se pudo generar la imagen'); return; }
       descargarBlob(blob, canvas.dataset.archivo);
@@ -3932,20 +4304,40 @@ async function iniciarAppPrincipal(){
 }
 
 /* -- Eventos de la pantalla de login / licencia -- */
-document.getElementById('btn-login-validar').addEventListener('click', ()=> manejarEnvioLogin(false));
-document.getElementById('login-codigo').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') manejarEnvioLogin(false); });
+document.getElementById('btn-login-validar').addEventListener('click', validarCodigoIngresado);
+document.getElementById('login-codigo').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') validarCodigoIngresado(); });
+document.getElementById('btn-login-activar').addEventListener('click', ()=> manejarEnvioLogin(false));
 document.getElementById('login-nombre').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') manejarEnvioLogin(false); });
 document.getElementById('login-telefono').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') manejarEnvioLogin(false); });
+// Cancelar en los datos: no se activa nada ni empieza la cuenta regresiva
+document.getElementById('btn-login-datos-cancelar').addEventListener('click', ()=>{ mostrarPasoLogin('codigo'); mensajeLogin(''); });
+document.getElementById('login-popup-cancelar').addEventListener('click', ()=>{ cerrarPopupLogin(); mensajeLogin(''); });
+document.getElementById('login-popup-aceptar').addEventListener('click', ()=>{
+  const pop = document.getElementById('login-popup');
+  const accion = pop._onAceptar;
+  cerrarPopupLogin();
+  if(accion) accion();
+});
 document.getElementById('btn-login-forzar').addEventListener('click', ()=> manejarEnvioLogin(true));
 document.getElementById('btn-login-cancelar-otro').addEventListener('click', ()=>{ codigoEnCurso = null; mostrarPasoLogin('codigo'); mensajeLogin(''); });
 document.getElementById('btn-login-continuar').addEventListener('click', continuarTrasLogin);
 document.getElementById('btn-mi-licencia').addEventListener('click', abrirModalLicencia);
-document.getElementById('btn-licencia-nuevo-codigo').addEventListener('click', ()=>{ closeModal('modal-licencia'); borrarLicenciaLocal(); mostrarPantallaLogin(); });
+// "Ingresar otro código" ya NO borra la licencia vigente: solo se reemplaza si el código nuevo se valida con éxito
+document.getElementById('btn-licencia-nuevo-codigo').addEventListener('click', ()=>{ closeModal('modal-licencia'); mostrarPantallaLogin(); });
+document.getElementById('btn-login-volver').addEventListener('click', ()=>{ codigoEnCurso = null; mensajeLogin(''); ocultarPantallaLogin(); });
 
 /* -- Modo de prueba: entrar sin código -- */
 document.getElementById('btn-login-prueba').addEventListener('click', async ()=>{
   if(leerPruebaLocal()) return; // ya se usó en este dispositivo
-  const prueba = iniciarPruebaLocal();
+  if(licenciaVigente(leerLicenciaLocal())) return; // con un código activo no se puede entrar al modo de prueba
+  const btnPrueba = document.getElementById('btn-login-prueba');
+  btnPrueba.disabled = true;
+  let prueba;
+  try{
+    prueba = await iniciarPruebaLocal(); // registra el dispositivo (fingerprint) en la base de datos
+  } finally {
+    btnPrueba.disabled = false;
+  }
   modoPrueba = true;
   ocultarPantallaLogin();
   if(!appPrincipalIniciada) await iniciarAppPrincipal();
@@ -3987,6 +4379,7 @@ configurarBotonContacto('btn-licencia-contacto', 'licencia-contacto-opciones', '
     ocultarPantallaLogin();
     await iniciarAppPrincipal();
     mostrarAvisoPruebaSiAplica(prueba);
+    chequearPruebaEnSegundoPlano(prueba); // no bloquea: corre despues de pintar la app
     return;
   }
   mostrarPantallaLogin();
@@ -4126,21 +4519,37 @@ configurarBotonContacto('btn-licencia-contacto', 'licencia-contacto-opciones', '
 })();
 
 /* =========================================================
-   Menú de ajustes (hamburguesa): abre/cierra el panel con
-   Tema, Licencia y Respaldo.
+   Menú de ajustes (hamburguesa): despliega una solapa lateral
+   (drawer fijo al borde derecho) con Tema, Licencia y Respaldo.
    ========================================================= */
 (function(){
   var cont = document.getElementById('menu-ajustes');
   var boton = document.getElementById('btn-menu-ajustes');
   var panel = document.getElementById('menu-ajustes-panel');
+  var overlay = document.getElementById('menu-ajustes-overlay');
+  var btnCerrar = document.getElementById('btn-menu-ajustes-cerrar');
   if(!cont || !boton || !panel) return;
-  function abierto(){ return !panel.hidden; }
-  function abrir(){ panel.hidden = false; boton.setAttribute('aria-expanded', 'true'); }
-  function cerrar(){ panel.hidden = true; boton.setAttribute('aria-expanded', 'false'); }
+  function abierto(){ return panel.classList.contains('abierto'); }
+  function abrir(){
+    panel.classList.add('abierto');
+    if(overlay) overlay.classList.add('activo');
+    boton.setAttribute('aria-expanded', 'true');
+    panel.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('menu-ajustes-bloqueo');
+  }
+  function cerrar(){
+    panel.classList.remove('abierto');
+    if(overlay) overlay.classList.remove('activo');
+    boton.setAttribute('aria-expanded', 'false');
+    panel.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('menu-ajustes-bloqueo');
+  }
   boton.addEventListener('click', function(e){ e.stopPropagation(); if(abierto()) cerrar(); else abrir(); });
-  document.addEventListener('click', function(e){ if(abierto() && !cont.contains(e.target)) cerrar(); });
+  if(overlay) overlay.addEventListener('click', cerrar);
+  if(btnCerrar) btnCerrar.addEventListener('click', cerrar);
+  document.addEventListener('click', function(e){ if(abierto() && !cont.contains(e.target) && !panel.contains(e.target)) cerrar(); });
   document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && abierto()) cerrar(); });
-  // Licencia y Respaldo navegan a un modal: cerramos el menú al elegirlas
+  // Licencia y Respaldo navegan a un modal: cerramos la solapa al elegirlas
   var licBtn = document.getElementById('btn-mi-licencia');
   var resBtn = document.getElementById('btn-abrir-respaldo');
   if(licBtn) licBtn.addEventListener('click', cerrar);
