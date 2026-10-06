@@ -554,10 +554,25 @@ d.setAttribute('data-theme',t);})();
   .legend .box{width:14px;height:14px;border-radius:4px;display:inline-block;}
 
   .numbers-grid{
+    position:relative;
     display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--num-min,64px),1fr));gap:var(--space-2);
     border-radius:var(--radius);padding:var(--space-4);
     padding-bottom:72px;
   }
+  .num-tooltip{
+    position:absolute;z-index:5;max-width:200px;
+    background:rgba(20,14,40,.94);color:#fff;
+    padding:7px 12px;border-radius:var(--radius-sm);box-shadow:0 6px 18px rgba(0,0,0,.3);
+    font-size:var(--fs-xs);line-height:1.35;text-align:center;white-space:normal;
+    display:flex;flex-direction:column;align-items:center;gap:1px;pointer-events:none;
+    animation:subirApareciendo .15s ease both;
+  }
+  .num-tooltip b{font-size:var(--fs-sm);font-weight:700;}
+  .num-tooltip::after{
+    content:'';position:absolute;left:50%;top:100%;transform:translateX(-50%);
+    border:6px solid transparent;border-top-color:rgba(20,14,40,.94);
+  }
+  .num-tooltip.num-tooltip-abajo::after{top:auto;bottom:100%;border-top-color:transparent;border-bottom-color:rgba(20,14,40,.94);}
   .num-btn{
     border:1px solid var(--disponible-border);background:var(--disponible);border-radius:var(--radius-sm);
     padding:var(--num-pad,10px) 4px;font-weight:700;font-size:var(--num-font,14px);cursor:pointer;text-align:center;color:var(--text);
@@ -2218,11 +2233,10 @@ document.getElementById('btn-guardar-sorteo').addEventListener('click', ()=>{
   if(cantidadNumeros > 10000){ toast('Cantidad de números demasiado alta'); return; }
   if(!valorNumero || valorNumero <= 0){ toast('Ingresa el valor por número'); return; }
 
-  const sorteo = crearSorteo({titulo, imagen, tipo, cantidadSeries, cantidadNumeros, fecha, valorNumero});
+  crearSorteo({titulo, imagen, tipo, cantidadSeries, cantidadNumeros, fecha, valorNumero});
   closeModal('modal-crear');
   toast('Sorteo creado');
   renderHome();
-  abrirDashboard(sorteo.id);
 });
 
 /* ---------- RENDER: DASHBOARD POR SORTEO ---------- */
@@ -2278,7 +2292,14 @@ function renderDashboard(){
     : `<span class="countdown-pill ${cd.cls}">${cd.txt}</span>`;
 
   cont.innerHTML = `
-    <div class="dash-banner${animarEntrada ? ' anim-up' : ''}">
+    <nav class="dash-nav${animarEntrada ? ' anim-up' : ''}">
+      <button class="dash-nav-back" id="dash-back-btn" title="Volver">${icon('arrow-left')}<span>Volver</span></button>
+      <button data-dashtab="numeros" class="${currentDashTab==='numeros'?'active':''}">${icon('hash')}<span>Números</span></button>
+      <button data-dashtab="historial" class="${currentDashTab==='historial'?'active':''}">${icon('clock')}<span>Historial</span></button>
+      <button data-dashtab="descargas" class="${currentDashTab==='descargas'?'active':''}">${icon('download')}<span>Descargas</span></button>
+    </nav>
+
+    <div class="dash-banner${animarEntrada ? ' anim-up-d1' : ''}">
       <div class="dash-banner-bg"${bannerBgStyle}>${!sorteo.imagen ? `<span class="dash-banner-icon">${icon('gift')}</span>` : ''}</div>
       <div class="dash-banner-scrim"></div>
       <div class="dash-banner-sizer" aria-hidden="true"><div class="dbs-title">${escapeHtml(sorteo.titulo)}</div><div class="dbs-fecha">${formatFechaLarga(sorteo.fechaSorteo)}</div></div>
@@ -2289,13 +2310,6 @@ function renderDashboard(){
       ${!soloLectura ? `<button class="dash-banner-edit" id="dash-btn-cambiar-imagen" title="Cambiar imagen">${icon('pencil')}</button>
       <input type="file" id="f-cambiar-imagen" accept="image/*" style="display:none;">` : ''}
     </div>
-
-    <nav class="dash-nav${animarEntrada ? ' anim-up-d1' : ''}">
-      <button class="dash-nav-back" id="dash-back-btn" title="Volver">${icon('arrow-left')}<span>Volver</span></button>
-      <button data-dashtab="numeros" class="${currentDashTab==='numeros'?'active':''}">${icon('hash')}<span>Números</span></button>
-      <button data-dashtab="historial" class="${currentDashTab==='historial'?'active':''}">${icon('clock')}<span>Historial</span></button>
-      <button data-dashtab="descargas" class="${currentDashTab==='descargas'?'active':''}">${icon('download')}<span>Descargas</span></button>
-    </nav>
 
     ${mostrarStats ? `
     <div class="dash-header anim-up-d2">
@@ -2507,10 +2521,11 @@ function renderDashTabContent(sorteo){
 
   document.getElementById('dash-buscar').addEventListener('input', (e)=>{
     renderNumbersGrid(sorteo, e.target.value.trim().toLowerCase());
+    actualizarTooltipNumero();
   });
 
-  document.getElementById('size-minus').addEventListener('click', ()=> cambiarTamanoGrid(-1));
-  document.getElementById('size-plus').addEventListener('click', ()=> cambiarTamanoGrid(1));
+  document.getElementById('size-minus').addEventListener('click', ()=> { cambiarTamanoGrid(-1); actualizarTooltipNumero(); });
+  document.getElementById('size-plus').addEventListener('click', ()=> { cambiarTamanoGrid(1); actualizarTooltipNumero(); });
   aplicarTamanoGrid();
 
   renderNumbersGrid(sorteo, '');
@@ -2803,6 +2818,43 @@ function toggleSeleccion(numero){
   renderNumbersGrid(sorteo, (document.getElementById('dash-buscar')||{}).value?.trim().toLowerCase() || '');
   actualizarBarraSeleccion();
   animarNumeroSeleccionado(numero);
+  actualizarTooltipNumero();
+}
+
+/* Tooltip cuadrado con comprador/teléfono: solo aparece cuando hay exactamente
+   un número seleccionado (al tocar otro, o al quedar varios seleccionados, desaparece). */
+function actualizarTooltipNumero(){
+  const anterior = document.getElementById('num-tooltip');
+  if(anterior) anterior.remove();
+
+  const grid = document.getElementById('numbers-grid');
+  if(!grid || grid.style.display === 'none') return; // no aplica en la lista de búsqueda (ya muestra los datos)
+  if(selectedNumbers.size !== 1) return;
+
+  const sorteo = getSorteo(currentSorteoId);
+  if(!sorteo || sorteo.archivado) return;
+  const numero = [...selectedNumbers][0];
+  const n = getNumero(sorteo, currentSerie, numero);
+  const btn = grid.querySelector(`[data-numero="${cssEscape(numero)}"]`);
+  if(!n || !btn) return;
+
+  const tip = document.createElement('div');
+  tip.id = 'num-tooltip';
+  tip.className = 'num-tooltip';
+  tip.innerHTML = n.comprador
+    ? `<b>${escapeHtml(n.comprador)}</b>${n.telefono ? `<span>${escapeHtml(n.telefono)}</span>` : ''}`
+    : `<span>${estadoTexto(n.estado)}</span>`;
+  grid.appendChild(tip);
+
+  const gap = 8;
+  let arriba = true;
+  let top = btn.offsetTop - tip.offsetHeight - gap;
+  if(top < 0){ top = btn.offsetTop + btn.offsetHeight + gap; arriba = false; }
+  let left = btn.offsetLeft + (btn.offsetWidth - tip.offsetWidth) / 2;
+  left = Math.max(4, Math.min(left, grid.clientWidth - tip.offsetWidth - 4));
+  tip.style.top = top + 'px';
+  tip.style.left = left + 'px';
+  tip.classList.toggle('num-tooltip-abajo', !arriba);
 }
 
 /* Pequeña animación de "pop" sobre el número que se acaba de seleccionar/deseleccionar */
@@ -2827,6 +2879,7 @@ function limpiarSeleccion(){
   const sorteo = getSorteo(currentSorteoId);
   if(sorteo) renderNumbersGrid(sorteo, (document.getElementById('dash-buscar')||{}).value?.trim().toLowerCase() || '');
   actualizarBarraSeleccion();
+  actualizarTooltipNumero();
 }
 function actualizarBarraSeleccion(){
   const bar = document.getElementById('selection-bar');
@@ -3172,6 +3225,11 @@ function slugify(str){
     .toLowerCase()) || 'sorteo';
 }
 
+/* Nombre base para los archivos descargables de un sorteo: [titulo] [fecha] [etiqueta] */
+function nombreArchivoSorteo(sorteo, etiqueta){
+  return `${slugify(sorteo.titulo)}-${sorteo.fechaSorteo}-${etiqueta}`;
+}
+
 function descargarBlob(blob, nombreArchivo){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -3388,7 +3446,7 @@ function descargarExcelSorteo(sorteo){
   }
 
   const blob = construirXLSX(hojas);
-  descargarBlob(blob, `${slugify(sorteo.titulo)}-numeros.xlsx`);
+  descargarBlob(blob, `${nombreArchivoSorteo(sorteo, 'numeros')}.xlsx`);
   toast('Descargando Excel...');
 }
 
@@ -3449,7 +3507,7 @@ function descargarImagenSorteo(sorteo){
 
   canvas.toBlob(blob=>{
     if(!blob){ toast('No se pudo generar la imagen'); return; }
-    descargarBlob(blob, `${slugify(sorteo.titulo)}-numeros.png`);
+    descargarBlob(blob, `${nombreArchivoSorteo(sorteo, 'numeros')}.png`);
   }, 'image/png');
   toast('Descargando imagen...');
 }
@@ -3485,7 +3543,7 @@ function dibujarImagenDisponibles(canvas, sorteo, serie, tramo, todos, rotuloTra
   const W = 1080, PAD = 56, COLS = 10, GAP = 10, CELL_H = 64, R = 12;
   const CELL_W = (W - PAD * 2 - GAP * (COLS - 1)) / COLS;
   const C = {bg:'#faf8ff', acento1:'#5b3df0', acento2:'#8b70ff', texto:'#1f1a33', texto2:'#4a4560',
-             marca:'#4a2fd6', libreBorde:'#5b3df0', libreFondo:'#ffffff', ocupadoFondo:'#e6e3ee', ocupadoTexto:'#5f5a72', pie:'#5f5a72'};
+             marca:'#4a2fd6', libreBorde:'#5b3df0', libreFondo:'#ffffff', ocupadoFondo:'#c7c0dc', ocupadoTexto:'#352e4d', pie:'#5f5a72'};
   const ctx = canvas.getContext('2d');
   ctx.font = `700 46px ${DISP_FUENTE}`;
   const lineasTitulo = dispPartirTexto(ctx, sorteo.titulo, W - PAD * 2, 2);
@@ -3584,7 +3642,7 @@ function iniciarImagenDisponibles(sorteo){
     const tramo = estado.nums.slice(estado.parte * DISP_POR_IMAGEN, (estado.parte + 1) * DISP_POR_IMAGEN);
     const rotulo = estado.partes > 1 ? `${tramo[0].numero}–${tramo[tramo.length - 1].numero}` : '';
     dibujarImagenDisponibles(canvas, sorteo, selSerie ? serieSel() : null, tramo, estado.nums, rotulo);
-    canvas.dataset.archivo = `${slugify(sorteo.titulo)}-disponibles${selSerie ? '-serie-' + serieSel() : ''}${rotulo ? '-' + rotulo.replace('–', '-') : ''}.png`;
+    canvas.dataset.archivo = `${nombreArchivoSorteo(sorteo, 'disponibles')}${selSerie ? '-serie-' + serieSel() : ''}${rotulo ? '-' + rotulo.replace('–', '-') : ''}.png`;
   }
   tramos(); dibujar();
   if(selSerie) selSerie.addEventListener('change', () => { tramos(); dibujar(); });
