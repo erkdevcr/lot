@@ -153,6 +153,20 @@ d.setAttribute('data-theme',t);})();
     color:var(--text);
     -webkit-font-smoothing:antialiased;
   }
+  /* Fondo del dashboard con la imagen del sorteo (si no tiene, queda el fondo predeterminado).
+     Capas fijas: imagen difuminada + velo del color del tema para que todo siga legible. */
+  :root{--fondo-sorteo-velo:rgba(27,16,51,.66);}
+  :root[data-theme="light"]{--fondo-sorteo-velo:rgba(243,238,255,.70);}
+  body.con-fondo-sorteo{background-image:none;}
+  body.con-fondo-sorteo::before{
+    content:'';position:fixed;inset:-24px;z-index:-1;pointer-events:none;
+    background-image:var(--fondo-sorteo);background-size:cover;background-position:center;background-repeat:no-repeat;
+    filter:blur(10px);
+  }
+  body.con-fondo-sorteo.fondo-sorteo-gris::before{filter:blur(10px) grayscale(.9);}
+  body.con-fondo-sorteo::after{
+    content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background:var(--fondo-sorteo-velo);
+  }
   button{font-family:inherit;}
   .app{max-width:1180px;margin:0 auto;padding:var(--space-5) var(--space-5) var(--space-6);}
 
@@ -1255,6 +1269,16 @@ d.setAttribute('data-theme',t);})();
     font-family:inherit;
   }
   .login-contacto-toggle:hover{text-decoration:underline;}
+  .login-contacto-titulo{text-align:center;color:var(--primary-ink);font-weight:600;font-size:var(--fs-sm);padding:var(--space-1);}
+  /* Código de acceso: 8 cajas (4 - 4) */
+  .codigo-cajas{display:flex;align-items:center;justify-content:center;gap:5px;}
+  .login-card .codigo-caja{
+    flex:1 1 0;min-width:0;width:100%;height:52px;padding:0 !important;text-align:center;line-height:1;
+    font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:0;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  .codigo-guion{flex:none;width:12px;text-align:center;font-size:22px;font-weight:700;color:var(--muted);}
+  @media (max-width:380px){.codigo-cajas{gap:3px;}.login-card .codigo-caja{height:46px;font-size:19px;}.codigo-guion{width:8px;}}
   .login-contacto-opciones{display:flex;gap:var(--space-2);margin-top:var(--space-3);}
   .login-contacto-opcion{
     flex:1;display:flex;align-items:center;justify-content:center;gap:var(--space-2);
@@ -1308,21 +1332,30 @@ d.setAttribute('data-theme',t);})();
 <div class="login-screen" id="pantalla-login" style="display:none;">
   <div class="login-card">
     <div class="login-logo"><svg class="icon"><use href="#icon-lock"></use></svg></div>
-    <h1>Bienvenido a Sorteos Personalizados</h1>
-    <p class="login-sub">Ingresa tu código de acceso para comenzar</p>
+    <h1>Bienvenido a LotApp</h1>
+    <p class="login-sub">Ingresa tu código de acceso</p>
 
     <div id="login-paso-codigo">
       <div class="form-group">
-        <label for="login-codigo">Código de acceso</label>
-        <input type="text" id="login-codigo" placeholder="Ej: ABCD-1234" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <div class="codigo-cajas" id="codigo-cajas" role="group" aria-label="Código de acceso (8 caracteres)">
+          <input class="codigo-caja" type="text" maxlength="1" aria-label="Carácter 1" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <input class="codigo-caja" type="text" maxlength="1" aria-label="Carácter 2" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <input class="codigo-caja" type="text" maxlength="1" aria-label="Carácter 3" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <input class="codigo-caja" type="text" maxlength="1" aria-label="Carácter 4" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <span class="codigo-guion" aria-hidden="true">-</span>
+          <input class="codigo-caja" type="text" maxlength="1" aria-label="Carácter 5" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <input class="codigo-caja" type="text" maxlength="1" aria-label="Carácter 6" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <input class="codigo-caja" type="text" maxlength="1" aria-label="Carácter 7" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <input class="codigo-caja" type="text" maxlength="1" aria-label="Carácter 8" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        </div>
+        <input type="hidden" id="login-codigo" value="">
       </div>
       <button class="btn-primary" id="btn-login-validar">Validar</button>
       <div class="login-msg" id="login-msg"></div>
 
       <button type="button" class="btn-secondary" id="btn-login-volver" style="display:none;margin-top:var(--space-3);">Cancelar</button>
 
-      <div class="login-separador" id="login-prueba-separador"><span>o</span></div>
-      <button type="button" class="btn-secondary" id="btn-login-prueba">Probar gratis 15 días (sin código)</button>
+      <button type="button" class="btn-secondary" id="btn-login-prueba">Pruébalo 15 días!</button>
       <div class="login-prueba-nota" id="login-prueba-nota" style="display:none;">Ya usaste tu período de prueba en este dispositivo.</div>
     </div>
 
@@ -1358,8 +1391,8 @@ d.setAttribute('data-theme',t);})();
     </div>
 
     <div class="login-contacto">
-      <button type="button" class="login-contacto-toggle" id="btn-login-contacto">¿No tienes código? Contáctanos</button>
-      <div class="login-contacto-opciones" id="login-contacto-opciones" hidden>
+      <div class="login-contacto-titulo" id="login-contacto-titulo">¿No tienes código? Contáctanos</div>
+      <div class="login-contacto-opciones" id="login-contacto-opciones">
         <a class="login-contacto-opcion" id="link-contacto-correo" href="#" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-mail"></use></svg>Correo</a>
         <a class="login-contacto-opcion" id="link-contacto-whatsapp" href="#" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-whatsapp"></use></svg>WhatsApp</a>
       </div>
@@ -1519,6 +1552,15 @@ d.setAttribute('data-theme',t);})();
       <div class="form-group">
         <label for="f-edit-titulo">Título del premio</label>
         <input type="text" id="f-edit-titulo" placeholder="Ej: iPhone 15 Pro, Canasta navideña...">
+      </div>
+      <div class="form-group">
+        <label>Imagen alusiva al premio</label>
+        <div class="img-drop" id="img-edit-zone">
+          <div id="img-edit-preview">Haz clic para subir una imagen</div>
+          <input type="file" id="f-edit-imagen" accept="image/*">
+        </div>
+        <button type="button" class="btn-secondary" id="btn-edit-quitar-imagen" style="margin-top:var(--space-2);display:none;">Quitar imagen</button>
+        <div class="form-hint">Es la imagen de la card y del fondo del dashboard. Sin imagen, queda el fondo predeterminado.</div>
       </div>
       <div class="form-group">
         <label>Color de la card</label>
@@ -1882,6 +1924,7 @@ function loginSePuedeCerrar(){
 }
 function mostrarPantallaLogin(){
   codigoEnCurso = null;
+  ponerCodigoEnCajas('');
   cerrarPopupLogin();
   mostrarPasoLogin('codigo');
   mensajeLogin('');
@@ -1926,14 +1969,12 @@ function cerrarPopupLogin(){
 /* Muestra "Probar gratis" solo si este dispositivo nunca usó el modo de prueba */
 function actualizarBotonPrueba(){
   const btn = document.getElementById('btn-login-prueba');
-  const separador = document.getElementById('login-prueba-separador');
   const nota = document.getElementById('login-prueba-nota');
   if(!btn) return;
   const yaUsada = !!leerPruebaLocal();
   // Con un código activo no se ofrece la prueba gratis (no tiene sentido y pisaría el código vigente)
   const conCodigoActivo = licenciaVigente(leerLicenciaLocal());
   btn.style.display = (yaUsada || conCodigoActivo) ? 'none' : '';
-  if(separador) separador.style.display = (yaUsada || conCodigoActivo) ? 'none' : '';
   if(nota) nota.style.display = (yaUsada && !conCodigoActivo) ? 'block' : 'none';
 }
 
@@ -2016,8 +2057,65 @@ async function manejarEnvioLogin(forzar, opciones){
   mostrarPasoLogin('exito');
 }
 
+/* -- Código de acceso en 8 cajas (4 - 4). `#login-codigo` (oculto) guarda el código completo "XXXX-XXXX". -- */
+function cajasCodigo(){ return Array.from(document.querySelectorAll('#codigo-cajas .codigo-caja')); }
+function limpiarCodigoCaracteres(txt){ return String(txt || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+function sincronizarCodigoCajas(){
+  const c = cajasCodigo().map(i => i.value);
+  const g1 = c.slice(0, 4).join(''), g2 = c.slice(4).join('');
+  document.getElementById('login-codigo').value = g2 ? g1 + '-' + g2 : g1;
+}
+function ponerCodigoEnCajas(valor){
+  const chars = limpiarCodigoCaracteres(valor).slice(0, 8);
+  cajasCodigo().forEach((inp, i) => { inp.value = chars[i] || ''; });
+  sincronizarCodigoCajas();
+}
+/* Escribe/pega `texto` a partir de la caja `desde`; devuelve el índice de la siguiente caja a enfocar */
+function rellenarCajasDesde(desde, texto){
+  const cajas = cajasCodigo();
+  const chars = limpiarCodigoCaracteres(texto);
+  if(!chars) return desde;
+  const inicio = chars.length >= cajas.length ? 0 : desde; // un código completo se reparte desde la primera caja
+  let k = inicio;
+  for(let j = 0; j < chars.length && k < cajas.length; j++, k++) cajas[k].value = chars[j];
+  sincronizarCodigoCajas();
+  return Math.min(k, cajas.length - 1);
+}
+function codigoIncompletoEnCajas(){
+  const llenas = cajasCodigo().filter(i => i.value).length;
+  const compuesto = (document.getElementById('login-codigo').value || '');
+  const cajasJuntas = cajasCodigo().map(i => i.value);
+  const esperado = cajasJuntas.slice(0, 4).join('') + (cajasJuntas.slice(4).join('') ? '-' + cajasJuntas.slice(4).join('') : '');
+  return llenas > 0 && llenas < 8 && compuesto === esperado;
+}
+(function iniciarCajasCodigo(){
+  const cajas = cajasCodigo();
+  cajas.forEach((inp, i) => {
+    inp.addEventListener('input', () => {
+      const v = limpiarCodigoCaracteres(inp.value);
+      inp.value = v.slice(-1); // una letra o número por caja
+      sincronizarCodigoCajas();
+      if(v && i < cajas.length - 1) cajas[i + 1].focus();
+    });
+    inp.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const txt = (e.clipboardData || window.clipboardData).getData('text');
+      const sig = rellenarCajasDesde(i, txt);
+      cajas[sig].focus();
+    });
+    inp.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter'){ e.preventDefault(); validarCodigoIngresado(); }
+      else if(e.key === 'Backspace' && !inp.value && i > 0){ e.preventDefault(); cajas[i - 1].value = ''; sincronizarCodigoCajas(); cajas[i - 1].focus(); }
+      else if(e.key === 'ArrowLeft' && i > 0){ e.preventDefault(); cajas[i - 1].focus(); }
+      else if(e.key === 'ArrowRight' && i < cajas.length - 1){ e.preventDefault(); cajas[i + 1].focus(); }
+    });
+    inp.addEventListener('focus', () => { try{ inp.select(); }catch(e){} });
+  });
+})();
+
 /* Paso 1: "Validar". Solo consulta el código (no lo activa ni inicia la cuenta regresiva). */
 async function validarCodigoIngresado(){
+  if(codigoIncompletoEnCajas()){ mensajeLogin('Completa los 8 caracteres de tu código', 'error'); return; }
   const codigo = (document.getElementById('login-codigo').value || '').trim().toUpperCase();
   if(!codigo){ mensajeLogin('Ingresa tu código de acceso', 'error'); return; }
   if(!sb){ mensajeLogin('No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.', 'error'); return; }
@@ -2153,8 +2251,7 @@ function cerrarSesion(){
   const banner = document.getElementById('licencia-banner');
   if(banner) banner.style.display = 'none';
   actualizarBotonCerrarSesion();
-  const inp = document.getElementById('login-codigo');
-  if(inp) inp.value = '';
+  ponerCodigoEnCajas('');
   mostrarPantallaLogin();
   if(appPrincipalIniciada) actualizarEstadoBotonNuevoSorteo();
 }
@@ -2510,8 +2607,22 @@ function statsDe(sorteo){
   return {total, disponibles, apartados, pagados, vendidos, pct: total? Math.round((vendidos/total)*100) : 0};
 }
 
+/* ---------- Fondo del dashboard = imagen del sorteo ---------- */
+function aplicarFondoSorteo(sorteo){
+  const b = document.body;
+  if(sorteo && sorteo.imagen){
+    b.style.setProperty('--fondo-sorteo', 'url("' + String(sorteo.imagen).replace(/"/g, '%22') + '")');
+    b.classList.add('con-fondo-sorteo');
+    b.classList.toggle('fondo-sorteo-gris', !!sorteo.archivado);
+  } else {
+    b.classList.remove('con-fondo-sorteo', 'fondo-sorteo-gris');
+    b.style.removeProperty('--fondo-sorteo');
+  }
+}
+
 /* ---------- Navegación ---------- */
 function showView(name){
+  if(name !== 'dashboard') aplicarFondoSorteo(null);
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   const view = document.getElementById('view-'+name);
   view.classList.add('active');
@@ -2739,11 +2850,11 @@ function actualizarEstadoBotonNuevoSorteo(){
   if(!btn) return;
   const agotado = modoPrueba && contarSorteosPruebaAbiertos() >= 1;
   btn.classList.toggle('btn-deshabilitado', !!agotado);
-  btn.title = agotado ? 'Ya tienes un sorteo de prueba abierto. Archívalo o bórralo para crear otro.' : '';
+  btn.title = agotado ? 'Ya tienes un sorteo de prueba abierto. Finalízalo o bórralo para crear otro.' : '';
 }
 document.getElementById('btn-nuevo-sorteo').addEventListener('click', ()=>{
   if(modoPrueba && contarSorteosPruebaAbiertos() >= 1){
-    toast('Ya tienes un sorteo de prueba abierto. Archívalo o bórralo para crear otro.');
+    toast('Ya tienes un sorteo de prueba abierto. Finalízalo o bórralo para crear otro.');
     return;
   }
   document.getElementById('f-titulo').value = '';
@@ -2829,7 +2940,7 @@ document.getElementById('btn-guardar-sorteo').addEventListener('click', ()=>{
   const valorNumero = parseFloat(document.getElementById('f-valor').value) || 0;
 
   if(modoPrueba){
-    if(contarSorteosPruebaAbiertos() >= 1){ toast('Ya tienes un sorteo de prueba abierto. Archívalo o bórralo para crear otro.'); return; }
+    if(contarSorteosPruebaAbiertos() >= 1){ toast('Ya tienes un sorteo de prueba abierto. Finalízalo o bórralo para crear otro.'); return; }
     titulo = PRUEBA_TITULO; // el nombre es fijo en el modo de prueba, sin excepción
     tipo = 'regular'; // sin series en el modo de prueba
     if(cantidadNumeros > PRUEBA_MAX_NUMEROS){ errorCampo('f-numeros', `En el modo de prueba el máximo es ${PRUEBA_MAX_NUMEROS} números`); return; }
@@ -2871,6 +2982,7 @@ function abrirDashboard(id){
 function renderDashboard(){
   const sorteo = getSorteo(currentSorteoId);
   if(!sorteo){ showView('home'); return; }
+  aplicarFondoSorteo(sorteo);
   const cont = document.getElementById('dash-content');
   const stats = statsDe(sorteo);
   const cd = countdownBadge(sorteo.fechaSorteo);
@@ -3287,7 +3399,25 @@ function numeroAsignadoMasAlto(sorteo){
   });
   return alto;
 }
+function pintarImagenEdicion(dataUrl){
+  const prev = document.getElementById('img-edit-preview');
+  document.getElementById('img-edit-zone').dataset.imgdata = dataUrl || '';
+  prev.innerHTML = dataUrl ? `<img src="${dataUrl}"><div>Clic para cambiar la imagen</div>` : 'Haz clic para subir una imagen';
+  document.getElementById('btn-edit-quitar-imagen').style.display = dataUrl ? '' : 'none';
+}
+document.getElementById('f-edit-imagen').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  document.getElementById('img-edit-preview').textContent = 'Procesando imagen...';
+  comprimirImagen(file).then(pintarImagenEdicion).catch(err=>{
+    console.warn('No se pudo procesar la imagen', err);
+    toast('No se pudo procesar la imagen');
+    pintarImagenEdicion(document.getElementById('img-edit-zone').dataset.imgdata || '');
+  }).finally(()=>{ e.target.value = ''; });
+});
+document.getElementById('btn-edit-quitar-imagen').addEventListener('click', ()=> pintarImagenEdicion(''));
 function abrirModalEditar(sorteo){
+  pintarImagenEdicion(sorteo.imagen || '');
   const esSeries = sorteo.tipo === 'series';
   const esPrueba = modoPrueba && !!sorteo.prueba; // evita usar "editar" para saltarse los límites del modo de prueba
   const alto = numeroAsignadoMasAlto(sorteo);
@@ -3325,6 +3455,7 @@ function abrirModalEditar(sorteo){
     sorteo.titulo = titulo;
     sorteo.valorNumero = valor;
     sorteo.color = selectorColorEditar.get() || null;
+    sorteo.imagen = document.getElementById('img-edit-zone').dataset.imgdata || null;
     if(cantidad !== sorteo.cantidadNumeros) redimensionarSorteo(sorteo, cantidad);
     saveState();
     closeModal('modal-editar');
@@ -4200,6 +4331,22 @@ function paletaImagenDisponibles(){
     libreBorde:'rgba(255,255,255,0.55)', libreFondo:'rgba(255,255,255,0.10)',
     ocupadoFondo:'rgba(255,255,255,0.035)', ocupadoTexto:'rgba(255,255,255,0.14)', pie:'rgba(247,245,255,0.55)'};
 }
+/* Imagen del sorteo para el fondo del PNG: se precarga (async) y se guarda aquí para dibujar de forma síncrona */
+const fondoDispCache = {src: null, img: null};
+function precargarFondoDisp(sorteo){
+  const src = sorteo && sorteo.imagen;
+  if(!src) return Promise.resolve(null);
+  if(fondoDispCache.src === src && fondoDispCache.img) return Promise.resolve(fondoDispCache.img);
+  return new Promise(resolve => {
+    let listo = false;
+    const fin = v => { if(!listo){ listo = true; resolve(v); } };
+    const im = new Image();
+    im.onload = () => { fondoDispCache.src = src; fondoDispCache.img = im; fin(im); };
+    im.onerror = () => fin(null);
+    setTimeout(() => fin(null), 2500);
+    im.src = src;
+  });
+}
 function dibujarImagenDisponibles(canvas, sorteo, serie, tramo, todos, rotuloTramo){
   const W = 1080, PAD = 56, COLS = 10, GAP = 10, CELL_H = 64, R = 12;
   const CELL_W = (W - PAD * 2 - GAP * (COLS - 1)) / COLS;
@@ -4216,6 +4363,16 @@ function dibujarImagenDisponibles(canvas, sorteo, serie, tramo, todos, rotuloTra
   canvas.width = W; canvas.height = H;
 
   ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  // Imagen del sorteo de fondo (cubre todo el lienzo) con un velo del color del tema para que los números se lean
+  const fondoImg = (sorteo.imagen && fondoDispCache.src === sorteo.imagen) ? fondoDispCache.img : null;
+  if(fondoImg && fondoImg.naturalWidth){
+    const esc = Math.max(W / fondoImg.naturalWidth, H / fondoImg.naturalHeight);
+    const dw = fondoImg.naturalWidth * esc, dh = fondoImg.naturalHeight * esc;
+    ctx.drawImage(fondoImg, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    ctx.globalAlpha = C.claro ? 0.66 : 0.64;
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
   const g = ctx.createLinearGradient(0, 0, W, 0); g.addColorStop(0, C.acento1); g.addColorStop(1, C.acento2);
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, 12);
   ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
@@ -4296,6 +4453,7 @@ function generarImagenesDisponibles(sorteo, serie){
 }
 /* Botón bajo la grilla: descarga la imagen de disponibles de la serie que se está viendo, con los colores del tema */
 async function descargarDisponiblesDesdeGrilla(sorteo){
+  await precargarFondoDisp(sorteo);
   const serie = sorteo.tipo === 'series' ? (currentSerie || 1) : 1;
   const imagenes = generarImagenesDisponibles(sorteo, serie);
   if(!imagenes.length){ toast('No hay números para descargar'); return; }
@@ -4335,9 +4493,11 @@ function iniciarImagenDisponibles(sorteo){
     canvas.dataset.archivo = `${nombreArchivoSorteo(sorteo, 'disponibles')}${selSerie ? '-serie-' + serieSel() : ''}${rotulo ? '-' + rotulo.replace('–', '-') : ''}.png`;
   }
   tramos(); dibujar();
+  precargarFondoDisp(sorteo).then(img => { if(img) dibujar(); }); // vuelve a dibujar con la imagen de fondo cuando termina de cargar
   if(selSerie) selSerie.addEventListener('change', () => { tramos(); dibujar(); });
   selRango.addEventListener('change', dibujar);
-  document.getElementById('btn-descargar-disponibles').addEventListener('click', () => {
+  document.getElementById('btn-descargar-disponibles').addEventListener('click', async () => {
+    await precargarFondoDisp(sorteo);
     dibujar(); // por si cambió el tema o el color de marca desde que se dibujó la vista previa
     canvas.toBlob(blob => {
       if(!blob){ toast('No se pudo generar la imagen'); return; }
@@ -4357,7 +4517,6 @@ async function iniciarAppPrincipal(){
 
 /* -- Eventos de la pantalla de login / licencia -- */
 document.getElementById('btn-login-validar').addEventListener('click', validarCodigoIngresado);
-document.getElementById('login-codigo').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') validarCodigoIngresado(); });
 document.getElementById('btn-login-activar').addEventListener('click', ()=> manejarEnvioLogin(false));
 document.getElementById('login-nombre').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') manejarEnvioLogin(false); });
 document.getElementById('login-telefono').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') manejarEnvioLogin(false); });
@@ -4408,8 +4567,8 @@ function configurarBotonContacto(idToggle, idOpciones, idLinkCorreo, idLinkWhats
   const opciones = document.getElementById(idOpciones);
   const linkCorreo = document.getElementById(idLinkCorreo);
   const linkWhatsapp = document.getElementById(idLinkWhatsapp);
-  if(!toggle || !opciones) return;
-  toggle.addEventListener('click', ()=>{ opciones.hidden = !opciones.hidden; });
+  if(!opciones) return;
+  if(toggle) toggle.addEventListener('click', ()=>{ opciones.hidden = !opciones.hidden; });
   if(linkCorreo){
     linkCorreo.href = 'mailto:' + CONTACTO_EMAIL + '?subject=' + encodeURIComponent('Quiero comprar un código') + '&body=' + encodeURIComponent(CONTACTO_MENSAJE);
   }
@@ -4417,7 +4576,7 @@ function configurarBotonContacto(idToggle, idOpciones, idLinkCorreo, idLinkWhats
     linkWhatsapp.href = 'https://wa.me/' + CONTACTO_WHATSAPP + '?text=' + encodeURIComponent(CONTACTO_MENSAJE);
   }
 }
-configurarBotonContacto('btn-login-contacto', 'login-contacto-opciones', 'link-contacto-correo', 'link-contacto-whatsapp');
+configurarBotonContacto(null, 'login-contacto-opciones', 'link-contacto-correo', 'link-contacto-whatsapp');
 configurarBotonContacto('btn-licencia-contacto', 'licencia-contacto-opciones', 'link-licencia-contacto-correo', 'link-licencia-contacto-whatsapp');
 
 (async function initApp(){
