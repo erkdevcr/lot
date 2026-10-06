@@ -999,6 +999,8 @@ d.setAttribute('data-theme',t);})();
     font-family:inherit;font-size:var(--fs-sm);font-weight:600;
   }
   .menu-ajustes-item:hover{background:var(--glass-bg-hover);}
+  .menu-ajustes-item-peligro{color:var(--danger);}
+  .menu-ajustes-item-peligro:hover{background:var(--danger-bg);}
   /* Selector de tema, ahora como fila dentro del menú de ajustes */
   .theme-toggle{
     display:flex;align-items:center;gap:var(--space-2);width:100%;
@@ -1270,6 +1272,7 @@ d.setAttribute('data-theme',t);})();
     <symbol id="icon-trophy" viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0V4Z"/><path d="M8 5H5.3A2.8 2.8 0 0 0 8 9.5"/><path d="M16 5h2.7A2.8 2.8 0 0 1 16 9.5"/><path d="M12 13v3"/><path d="M9 20h6"/><path d="M10.2 16h3.6l.5 4H9.7l.5-4Z"/></symbol>
     <symbol id="icon-pencil" viewBox="0 0 24 24"><path d="M4 20l.8-3.8L16.4 4.6a1.5 1.5 0 0 1 2.1 0l1 1a1.5 1.5 0 0 1 0 2.1L7.9 19.3 4 20Z"/><path d="M14.6 6.6l2.9 2.9"/></symbol>
     <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="icon-logout" viewBox="0 0 24 24"><path d="M10 4.5H6.5a1.5 1.5 0 0 0-1.5 1.5v12a1.5 1.5 0 0 0 1.5 1.5H10"/><path d="M15 8l4 4-4 4"/><path d="M19 12H9.5"/></symbol>
     <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 4v11"/><path d="M7.5 11.5 12 16l4.5-4.5"/><path d="M5 19h14"/></symbol>
     <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M12 20V9"/><path d="M7.5 13.5 12 9l4.5 4.5"/><path d="M5 19h14"/></symbol>
     <symbol id="icon-loader" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9"/></symbol>
@@ -1312,7 +1315,7 @@ d.setAttribute('data-theme',t);})();
       <button class="btn-primary" id="btn-login-validar">Validar</button>
       <div class="login-msg" id="login-msg"></div>
 
-      <button type="button" class="btn-secondary" id="btn-login-volver" style="display:none;margin-top:var(--space-3);">Volver a la app</button>
+      <button type="button" class="btn-secondary" id="btn-login-volver" style="display:none;margin-top:var(--space-3);">Cancelar</button>
 
       <div class="login-separador" id="login-prueba-separador"><span>o</span></div>
       <button type="button" class="btn-secondary" id="btn-login-prueba">Probar gratis 15 días (sin código)</button>
@@ -1692,6 +1695,10 @@ d.setAttribute('data-theme',t);})();
     <div class="menu-ajustes-seccion">
       <div class="menu-ajustes-titulo">Respaldo</div>
       <button type="button" class="menu-ajustes-item" id="btn-abrir-respaldo" title="Exportar o importar una copia de seguridad"><svg class="icon"><use href="#icon-download"></use></svg><span>Exportar o importar copia</span></button>
+    </div>
+    <div class="menu-ajustes-seccion" id="menu-sesion-seccion" style="display:none;">
+      <div class="menu-ajustes-titulo">Sesión</div>
+      <button type="button" class="menu-ajustes-item menu-ajustes-item-peligro" id="btn-cerrar-sesion" title="Cerrar sesión en este dispositivo"><svg class="icon"><use href="#icon-logout"></use></svg><span>Cerrar sesión</span></button>
     </div>
   </div>
 </div>
@@ -2126,6 +2133,24 @@ function mostrarAvisoPruebaSiAplica(prueba){
   banner.style.display = 'flex';
   const btn = document.getElementById('btn-ir-nuevo-codigo');
   if(btn) btn.addEventListener('click', ()=> mostrarPantallaLogin());
+}
+
+/* -- Cerrar sesión: quita el código de ESTE dispositivo y vuelve a la pantalla de ingreso.
+   No borra los sorteos guardados ni el registro de la prueba gratis (ese vive en el servidor). -- */
+function actualizarBotonCerrarSesion(){
+  const sec = document.getElementById('menu-sesion-seccion');
+  if(sec) sec.style.display = leerLicenciaLocal() ? '' : 'none';
+}
+function cerrarSesion(){
+  borrarLicenciaLocal();
+  modoPrueba = false;
+  const banner = document.getElementById('licencia-banner');
+  if(banner) banner.style.display = 'none';
+  actualizarBotonCerrarSesion();
+  const inp = document.getElementById('login-codigo');
+  if(inp) inp.value = '';
+  mostrarPantallaLogin();
+  if(appPrincipalIniciada) actualizarEstadoBotonNuevoSorteo();
 }
 
 function abrirModalLicencia(){
@@ -4322,6 +4347,11 @@ document.getElementById('btn-login-forzar').addEventListener('click', ()=> manej
 document.getElementById('btn-login-cancelar-otro').addEventListener('click', ()=>{ codigoEnCurso = null; mostrarPasoLogin('codigo'); mensajeLogin(''); });
 document.getElementById('btn-login-continuar').addEventListener('click', continuarTrasLogin);
 document.getElementById('btn-mi-licencia').addEventListener('click', abrirModalLicencia);
+document.getElementById('btn-cerrar-sesion').addEventListener('click', ()=>{
+  confirmar('Cerrar sesión',
+    '<p>Se quitará el código de este dispositivo y volverás a la pantalla de ingreso. Tus sorteos guardados aquí no se borran.</p><p>Para volver a entrar necesitarás ingresar tu código.</p>',
+    cerrarSesion, 'Cerrar sesión');
+});
 // "Ingresar otro código" ya NO borra la licencia vigente: solo se reemplaza si el código nuevo se valida con éxito
 document.getElementById('btn-licencia-nuevo-codigo').addEventListener('click', ()=>{ closeModal('modal-licencia'); mostrarPantallaLogin(); });
 document.getElementById('btn-login-volver').addEventListener('click', ()=>{ codigoEnCurso = null; mensajeLogin(''); ocultarPantallaLogin(); });
@@ -4531,6 +4561,7 @@ configurarBotonContacto('btn-licencia-contacto', 'licencia-contacto-opciones', '
   if(!cont || !boton || !panel) return;
   function abierto(){ return panel.classList.contains('abierto'); }
   function abrir(){
+    if(typeof actualizarBotonCerrarSesion === 'function') actualizarBotonCerrarSesion();
     panel.classList.add('abierto');
     if(overlay) overlay.classList.add('activo');
     boton.setAttribute('aria-expanded', 'true');
@@ -4554,6 +4585,8 @@ configurarBotonContacto('btn-licencia-contacto', 'licencia-contacto-opciones', '
   var resBtn = document.getElementById('btn-abrir-respaldo');
   if(licBtn) licBtn.addEventListener('click', cerrar);
   if(resBtn) resBtn.addEventListener('click', cerrar);
+  var salBtn = document.getElementById('btn-cerrar-sesion');
+  if(salBtn) salBtn.addEventListener('click', cerrar);
 })();
 
 /* =========================================================
