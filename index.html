@@ -790,7 +790,7 @@ d.setAttribute('data-theme',t);})();
   /* Sorteo archivado: señal de solo lectura y «Restaurar» como acción neutra */
   .dash-banner:not(:has(.dash-banner-edit)) .dash-banner-icon{justify-content:flex-end;padding-right:var(--space-5);}
   .dash-banner:not(:has(.dash-banner-edit))::after{
-    content:'Archivado · solo lectura';
+    content:'Finalizado · solo lectura';
     position:absolute;top:var(--space-3);left:var(--space-4);z-index:2;
     padding:var(--space-1) var(--space-3) var(--space-1) 28px;border-radius:var(--radius-sm);
     font-size:var(--fs-xs);font-weight:700;line-height:1.5;color:#fff;
@@ -1388,7 +1388,7 @@ d.setAttribute('data-theme',t);})();
   <div class="tabs-bar" id="tabs-bar">
     <nav class="tabs">
       <button data-nav="home" class="active">Sorteos</button>
-      <button data-nav="archivados">Archivados</button>
+      <button data-nav="archivados">Finalizados</button>
     </nav>
   </div>
 
@@ -1446,7 +1446,7 @@ d.setAttribute('data-theme',t);})();
       <div class="form-group">
         <label>Color de la card (opcional)</label>
         <div class="card-color-row" id="f-color-row" role="group" aria-label="Color de la card"></div>
-        <div class="form-hint">Si no eliges un color, la card usa el del tema. Con imagen, el color se ve en la franja y la barra de progreso.</div>
+        <div class="form-hint" id="f-color-hint">Color del tema</div>
       </div>
 
       <div class="form-group" id="grupo-tipo-sorteo">
@@ -1523,7 +1523,7 @@ d.setAttribute('data-theme',t);})();
       <div class="form-group">
         <label>Color de la card</label>
         <div class="card-color-row" id="f-edit-color-row" role="group" aria-label="Color de la card"></div>
-        <div class="form-hint">Sin color propio, la card usa el del tema.</div>
+        <div class="form-hint" id="f-edit-color-hint">Color del tema</div>
       </div>
       <div class="two-col">
         <div class="form-group">
@@ -1549,7 +1549,7 @@ d.setAttribute('data-theme',t);})();
 <div class="modal-overlay" id="modal-ganador">
   <div class="modal">
     <div class="modal-header">
-      <h3>Finalizar y archivar sorteo</h3>
+      <h3>Finalizar sorteo</h3>
       <button class="close-x" data-close="modal-ganador"><svg class="icon"><use href="#icon-close"></use></svg></button>
     </div>
     <div class="modal-body">
@@ -1565,7 +1565,7 @@ d.setAttribute('data-theme',t);})();
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" data-close="modal-ganador">Cancelar</button>
-      <button class="btn-primary" id="btn-confirmar-archivar">Archivar sorteo</button>
+      <button class="btn-primary" id="btn-confirmar-archivar">Finalizar sorteo</button>
     </div>
   </div>
 </div>
@@ -1578,7 +1578,7 @@ d.setAttribute('data-theme',t);})();
       <button class="close-x" data-close="modal-restaurar"><svg class="icon"><use href="#icon-close"></use></svg></button>
     </div>
     <div class="modal-body">
-      <p style="font-size:13px;color:var(--muted);margin-top:0;"><b>Continuar:</b> mantiene los números apartados y pagados tal como quedaron (útil si se archivó por error). <b>Empezar de nuevo:</b> deja todos los números disponibles otra vez; el resto del sorteo (título, imagen, valor) no cambia.</p>
+      <p style="font-size:13px;color:var(--muted);margin-top:0;"><b>Continuar:</b> mantiene los números apartados y pagados tal como quedaron (útil si se finalizó por error). <b>Empezar de nuevo:</b> deja todos los números disponibles otra vez; el resto del sorteo (título, imagen, valor) no cambia.</p>
       <div class="form-group" id="restaurar-grupo-fecha" style="display:none;">
         <label for="f-restaurar-fecha">Este sorteo ya venció. Indica la nueva fecha para restaurarlo</label>
         <input type="date" id="f-restaurar-fecha">
@@ -2176,8 +2176,8 @@ function abrirModalLicencia(){
     const archivados = contarSorteosPruebaArchivados();
     info.innerHTML = '<p style="margin-top:0;">Estás en el <b>modo de prueba</b> (sin código).</p>' +
       `<p>${dias > 0 ? `Quedan <b>${dias} día${dias === 1 ? '' : 's'}</b>.` : 'Tu período de prueba terminó.'}</p>` +
-      `<p>Sorteos de prueba: <b>${abiertos} de 1 abierto</b> y <b>${archivados} de 1 archivado</b> (hasta ${PRUEBA_MAX_NUMEROS} números cada uno).</p>` +
-      '<p>Puedes borrar o archivar el sorteo actual para crear otro. Compra un código para quitar estos límites.</p>';
+      `<p>Sorteos de prueba: <b>${abiertos} de 1 abierto</b> y <b>${archivados} de 1 finalizado</b> (hasta ${PRUEBA_MAX_NUMEROS} números cada uno).</p>` +
+      '<p>Puedes borrar o finalizar el sorteo actual para crear otro. Compra un código para quitar estos límites.</p>';
   } else {
     info.innerHTML = '<p style="margin-top:0;">No se encontró información de licencia.</p>';
   }
@@ -2422,7 +2422,7 @@ function colorCardAttrs(s, claseBase){
   return {clase: ' ' + claseBase, estilo: ' style="' + Object.keys(vars).map(k => k + ':' + vars[k]).join(';') + '"'};
 }
 /* Selector de color: botón "Tema" (sin color propio) + paleta. Guarda el valor en row.dataset.valor ('' = tema) */
-function iniciarSelectorColorCard(row){
+function iniciarSelectorColorCard(row, hint){
   if(!row) return {get: () => '', set: () => {}};
   row.innerHTML = `<button type="button" class="card-color-swatch card-color-tema activo" data-color="" title="Color del tema" aria-label="Color del tema"></button>`
     + COLORES_CARD.map(o => `<button type="button" class="card-color-swatch" data-color="${o.hex}" style="--sw:${o.hex}" title="${o.nombre}" aria-label="${o.nombre}"></button>`).join('');
@@ -2430,13 +2430,14 @@ function iniciarSelectorColorCard(row){
     v = colorCardValido(v) ? v.toLowerCase() : '';
     row.dataset.valor = v;
     row.querySelectorAll('.card-color-swatch').forEach(b => b.classList.toggle('activo', b.dataset.color === v));
+    if(hint){ const o = COLORES_CARD.find(c => c.hex === v); hint.textContent = o ? o.nombre : 'Color del tema'; }
   }
   row.querySelectorAll('.card-color-swatch').forEach(b => b.addEventListener('click', () => set(b.dataset.color)));
   set('');
   return {get: () => row.dataset.valor || '', set};
 }
-const selectorColorCrear = iniciarSelectorColorCard(document.getElementById('f-color-row'));
-const selectorColorEditar = iniciarSelectorColorCard(document.getElementById('f-edit-color-row'));
+const selectorColorCrear = iniciarSelectorColorCard(document.getElementById('f-color-row'), document.getElementById('f-color-hint'));
+const selectorColorEditar = iniciarSelectorColorCard(document.getElementById('f-edit-color-row'), document.getElementById('f-edit-color-hint'));
 
 function crearSorteo({titulo, imagen, tipo, cantidadSeries, cantidadNumeros, fecha, valorNumero, color}){
   const digitos = digitsFor(cantidadNumeros);
@@ -2585,7 +2586,7 @@ document.getElementById('btn-eliminar-todo').addEventListener('click', ()=>{
   const n = state.sorteos.length;
   if(!n){ toast('No hay registros para eliminar'); return; }
   confirmar('Eliminar todos los registros',
-    `<p>Se borrarán de forma permanente <b>${n} sorteo${n === 1 ? '' : 's'}</b> (abiertos y archivados) con sus números, ventas, historial e imágenes, y los datos quedarán en cero.</p><p>Esta acción no se puede deshacer. Si quieres conservar algo, exporta una copia antes.</p>`,
+    `<p>Se borrarán de forma permanente <b>${n} sorteo${n === 1 ? '' : 's'}</b> (abiertos y finalizados) con sus números, ventas, historial e imágenes, y los datos quedarán en cero.</p><p>Esta acción no se puede deshacer. Si quieres conservar algo, exporta una copia antes.</p>`,
     eliminarTodosLosRegistros, 'Sí, eliminar todo');
 });
 document.getElementById('btn-exportar-json').addEventListener('click', exportarJSON);
@@ -2631,8 +2632,8 @@ function renderArchivadosTab(){
   const archivados = state.sorteos.filter(s => s.archivado);
   if(archivados.length === 0){
     cont.innerHTML = `<div class="empty-state"><div class="big">${icon('archive')}</div>
-      <div style="font-weight:700;font-size:15px;margin-bottom:6px;">Todavía no hay sorteos archivados</div>
-      <div>Cuando finalices y archives un sorteo, aparecerá aquí en modo solo lectura.</div></div>`;
+      <div style="font-weight:700;font-size:15px;margin-bottom:6px;">Todavía no hay sorteos finalizados</div>
+      <div>Cuando finalices un sorteo, aparecerá aquí en modo solo lectura.</div></div>`;
     return;
   }
   cont.innerHTML = `<div class="grid-cards">${archivados.map(cardArchivadoHTML).join('')}</div>`;
@@ -2904,7 +2905,7 @@ function renderDashboard(){
   const fechaCorta = iso => { const p = String(iso || '').split('-'); return p.length === 3 ? `${+p[2]}/${+p[1]}/${p[0]}` : ''; };
   const fechaDoble = iso => `<span class="f-larga">${formatFechaLarga(iso)}</span><span class="f-corta">${fechaCorta(iso)}</span>`;
   const pillHtml = soloLectura
-    ? `<span class="countdown-pill countdown-archived">${icon('lock')}<span>${sorteo.fechaArchivado && fechaLocalISO(sorteo.fechaArchivado) ? 'Archivado el ' + fechaDoble(fechaLocalISO(sorteo.fechaArchivado)) : 'Archivado'}</span></span>`
+    ? `<span class="countdown-pill countdown-archived">${icon('lock')}<span>${sorteo.fechaArchivado && fechaLocalISO(sorteo.fechaArchivado) ? 'Finalizado el ' + fechaDoble(fechaLocalISO(sorteo.fechaArchivado)) : 'Finalizado'}</span></span>`
     : `<span class="countdown-pill ${cd.cls}">${cd.txt}</span>`;
 
   cont.innerHTML = `
@@ -2952,7 +2953,7 @@ function renderDashboard(){
 
     ${mostrarStats ? `
     <div class="dash-actions dash-actions-final ${animarEntrada ? 'anim-up-d3' : 'anim-up'}">
-      <button class="btn-secondary" id="dash-btn-archivar">${soloLectura ? 'Restaurar sorteo' : 'Archivar sorteo'}</button>
+      <button class="btn-secondary" id="dash-btn-archivar">${soloLectura ? 'Restaurar sorteo' : 'Finalizar sorteo'}</button>
       <button class="btn-danger" id="dash-btn-eliminar">${icon('trash')}<span>Eliminar sorteo</span></button>
     </div>` : ''}
   `;
@@ -3002,14 +3003,14 @@ function renderDashboard(){
   if(btnArchivar) btnArchivar.addEventListener('click', ()=>{
     if(sorteo.archivado){
       if(modoPrueba && sorteo.prueba && contarSorteosPruebaAbiertos() >= 1){
-        toast('Ya tienes un sorteo de prueba abierto. Archívalo o bórralo para poder restaurar este.');
+        toast('Ya tienes un sorteo de prueba abierto. Finalízalo o bórralo para poder restaurar este.');
         return;
       }
       abrirModalRestaurar(sorteo);
       return;
     }
     if(modoPrueba && sorteo.prueba && contarSorteosPruebaArchivados() >= 1){
-      toast('Ya tienes un sorteo de prueba archivado. Bórralo para poder archivar otro.');
+      toast('Ya tienes un sorteo de prueba finalizado. Bórralo para poder finalizar otro.');
       return;
     }
     abrirModalGanador(sorteo);
@@ -3208,15 +3209,15 @@ function abrirModalGanador(sorteo){
       sorteo.fechaArchivado = new Date().toISOString();
       saveState();
       closeModal('modal-ganador');
-      toast('Sorteo archivado');
+      toast('Sorteo finalizado');
       showView('archivados');
     };
     const st = statsDe(sorteo);
     if(st.apartados > 0){
       const n = st.apartados;
-      confirmar('Archivar con números apartados',
-        `Este sorteo tiene <b>${n} número${n === 1 ? '' : 's'} apartado${n === 1 ? '' : 's'} sin pagar</b> (${formatColones(totalPorCobrar(sorteo, st))} por cobrar). Al archivarlo queda en solo lectura y no podrás marcarlo${n === 1 ? '' : 's'} como pagado${n === 1 ? '' : 's'} hasta restaurarlo. ¿Archivar de todos modos?`,
-        archivar, 'Archivar de todos modos');
+      confirmar('Finalizar con números apartados',
+        `Este sorteo tiene <b>${n} número${n === 1 ? '' : 's'} apartado${n === 1 ? '' : 's'} sin pagar</b> (${formatColones(totalPorCobrar(sorteo, st))} por cobrar). Al finalizarlo queda en solo lectura y no podrás marcarlo${n === 1 ? '' : 's'} como pagado${n === 1 ? '' : 's'} hasta restaurarlo. ¿Finalizar de todos modos?`,
+        archivar, 'Finalizar de todos modos');
       return;
     }
     archivar();
@@ -3797,7 +3798,7 @@ function histItemHTML(key, serie, numero, campos, accionesHtml){
     </div>
   </li>`;
 }
-function histArchivado(){ return `<span class="hist-lock">${icon('lock')} Archivado · solo lectura</span>`; }
+function histArchivado(){ return `<span class="hist-lock">${icon('lock')} Finalizado · solo lectura</span>`; }
 function tablaPendientes(rows){
   return `<ul class="hist-list hist-pendientes" role="list">
     ${rows.map(r => histItemHTML(`${r.sorteo.id}|${r.item.serie}|${r.item.numero}`, r.sorteo.tipo === 'series' ? r.item.serie : null, r.item.numero, [
