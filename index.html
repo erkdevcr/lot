@@ -999,6 +999,10 @@ d.setAttribute('data-theme',t);})();
     font-family:inherit;font-size:var(--fs-sm);font-weight:600;
   }
   .menu-ajustes-item:hover{background:var(--glass-bg-hover);}
+  .menu-ajustes-pie{
+    flex:none;padding:var(--space-3) var(--space-4);border-top:1px solid var(--divider);
+    text-align:center;font-size:var(--fs-2xs);color:var(--muted);letter-spacing:.02em;
+  }
   .menu-ajustes-item-peligro{color:var(--danger);}
   .menu-ajustes-item-peligro:hover{background:var(--danger-bg);}
   /* Selector de tema, ahora como fila dentro del menú de ajustes */
@@ -1695,12 +1699,14 @@ d.setAttribute('data-theme',t);})();
     <div class="menu-ajustes-seccion">
       <div class="menu-ajustes-titulo">Respaldo</div>
       <button type="button" class="menu-ajustes-item" id="btn-abrir-respaldo" title="Exportar o importar una copia de seguridad"><svg class="icon"><use href="#icon-download"></use></svg><span>Exportar o importar copia</span></button>
+      <button type="button" class="menu-ajustes-item menu-ajustes-item-peligro" id="btn-eliminar-todo" title="Eliminar todos los sorteos y dejar los datos en cero"><svg class="icon"><use href="#icon-trash"></use></svg><span>Eliminar todos los registros</span></button>
     </div>
     <div class="menu-ajustes-seccion" id="menu-sesion-seccion" style="display:none;">
       <div class="menu-ajustes-titulo">Sesión</div>
       <button type="button" class="menu-ajustes-item menu-ajustes-item-peligro" id="btn-cerrar-sesion" title="Cerrar sesión en este dispositivo"><svg class="icon"><use href="#icon-logout"></use></svg><span>Cerrar sesión</span></button>
     </div>
   </div>
+  <div class="menu-ajustes-pie" id="menu-ajustes-pie">V 1.0 · Copyright © ErkDevCr <span id="menu-ajustes-anio">2026</span></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -2560,8 +2566,28 @@ document.getElementById('btn-confirmar-accion').addEventListener('click', ()=>{
   closeModal('modal-confirmar');
 });
 
+/* -- Eliminar todos los registros: deja los datos locales (sorteos) en cero. No toca la licencia. -- */
+async function eliminarTodosLosRegistros(){
+  state = { sorteos: [] };
+  currentSorteoId = null;
+  selectedNumbers = new Set();
+  actualizarBarraSeleccion();
+  try{ localStorage.removeItem(LEGACY_STORAGE_KEY); }catch(e){}
+  try{ await dbSetState(state); }
+  catch(e){ console.warn('No se pudo vaciar IndexedDB', e); toast('No se pudo vaciar la base de datos'); return; }
+  toast('Se eliminaron todos los registros');
+  showView('home');
+}
+
 /* ---------- Respaldo: exportar / importar JSON ---------- */
 document.getElementById('btn-abrir-respaldo').addEventListener('click', ()=> openModal('modal-backup'));
+document.getElementById('btn-eliminar-todo').addEventListener('click', ()=>{
+  const n = state.sorteos.length;
+  if(!n){ toast('No hay registros para eliminar'); return; }
+  confirmar('Eliminar todos los registros',
+    `<p>Se borrarán de forma permanente <b>${n} sorteo${n === 1 ? '' : 's'}</b> (abiertos y archivados) con sus números, ventas, historial e imágenes, y los datos quedarán en cero.</p><p>Esta acción no se puede deshacer. Si quieres conservar algo, exporta una copia antes.</p>`,
+    eliminarTodosLosRegistros, 'Sí, eliminar todo');
+});
 document.getElementById('btn-exportar-json').addEventListener('click', exportarJSON);
 document.getElementById('btn-importar-json').addEventListener('click', ()=>{
   document.getElementById('f-importar-json').click();
@@ -4587,6 +4613,11 @@ configurarBotonContacto('btn-licencia-contacto', 'licencia-contacto-opciones', '
   if(resBtn) resBtn.addEventListener('click', cerrar);
   var salBtn = document.getElementById('btn-cerrar-sesion');
   if(salBtn) salBtn.addEventListener('click', cerrar);
+  var delBtn = document.getElementById('btn-eliminar-todo');
+  if(delBtn) delBtn.addEventListener('click', cerrar);
+  // Año del copyright automático
+  var anio = document.getElementById('menu-ajustes-anio');
+  if(anio) anio.textContent = String(new Date().getFullYear());
 })();
 
 /* =========================================================
