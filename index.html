@@ -164,6 +164,13 @@ d.setAttribute('data-theme',t);})();
     filter:blur(10px);
   }
   body.con-fondo-sorteo.fondo-sorteo-gris::before{filter:blur(10px) grayscale(.9);}
+  /* Sin imagen propia: el fondo predeterminado se tiñe (mezcla "color": conserva la luz y las formas del fondo).
+     Con color propio en la card se usa ese color; si no, el color del tema cuando es uno personalizado. */
+  body.con-tinte-sorteo::after{
+    content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
+    background:var(--tinte-sorteo, var(--primary));mix-blend-mode:color;opacity:.9;
+  }
+  :root:not([data-marca]) body.con-tinte-sorteo:not(.tinte-propio)::after{display:none;}
   body.con-fondo-sorteo::after{
     content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background:var(--fondo-sorteo-velo);
   }
@@ -1057,10 +1064,10 @@ d.setAttribute('data-theme',t);})();
   }
   .card-color{--card-body-bg:linear-gradient(180deg,var(--c-bg1d),var(--c-bg2d));}
   :root[data-theme="light"] .card-color{
-    --primary-ink:var(--c-dark);
+    --primary-ink:var(--c-ink-l);
     --card-body-bg:linear-gradient(180deg,var(--c-bg1l),var(--c-bg2l));
   }
-  :root[data-theme="light"] .dash-banner-color{--primary-ink:var(--c-dark);}
+  :root[data-theme="light"] .dash-banner-color{--primary-ink:var(--c-ink-l);}
   /* Selector de color de la card (crear / editar sorteo) */
   .card-color-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);}
   .card-color-swatch{
@@ -1760,7 +1767,7 @@ d.setAttribute('data-theme',t);})();
       <button type="button" class="menu-ajustes-item menu-ajustes-item-peligro" id="btn-cerrar-sesion" title="Cerrar sesión en este dispositivo"><svg class="icon"><use href="#icon-logout"></use></svg><span>Cerrar sesión</span></button>
     </div>
   </div>
-  <div class="menu-ajustes-pie" id="menu-ajustes-pie">V <span id="menu-ajustes-version">1.0.1</span> · Copyright © ErkDevCr <span id="menu-ajustes-anio">2026</span></div>
+  <div class="menu-ajustes-pie" id="menu-ajustes-pie">V <span id="menu-ajustes-version">1.0.2</span> · Copyright © ErkDevCr <span id="menu-ajustes-anio">2026</span></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1797,7 +1804,7 @@ catch(e){ console.warn('No se pudo inicializar el cliente de Supabase', e); }
    APP_VERSION del nuevo index.html. Cada dispositivo lo consulta (sin usar la copia guardada) y, si hay una
    versión más nueva, recarga la app sola. No toca sorteos ni licencia (viven en este dispositivo).
    ========================================================= */
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 const VERSION_URL = 'version.json';
 const VERSION_REVISAR_CADA_MS = 5 * 60 * 1000;
 let actualizandoApp = false;
@@ -2670,7 +2677,7 @@ function colorCardAttrs(s, claseBase){
   if(!s || s.archivado || !colorCardValido(s.color)) return {clase: '', estilo: ''};
   const c = s.color;
   const vars = {
-    '--c': c, '--c-dark': mezclarHexCard(c, '#000000', .25), '--c-light': mezclarHexCard(c, '#ffffff', .55),
+    '--c': c, '--c-dark': mezclarHexCard(c, '#000000', .18), '--c-ink-l': mezclarHexCard(c, '#000000', .12), '--c-light': mezclarHexCard(c, '#ffffff', .55),
     '--c-bg1d': mezclarHexCard(c, '#140e28', .58, .86), '--c-bg2d': mezclarHexCard(c, '#0e091e', .68, .93),
     '--c-bg1l': mezclarHexCard(c, '#ffffff', .82, .92), '--c-bg2l': mezclarHexCard(c, '#ffffff', .90, .96)
   };
@@ -2768,6 +2775,12 @@ function statsDe(sorteo){
 /* ---------- Fondo del dashboard = imagen del sorteo ---------- */
 function aplicarFondoSorteo(sorteo){
   const b = document.body;
+  // Tinte del fondo predeterminado (solo si el sorteo no tiene imagen propia y no está finalizado)
+  const sinImagen = !!sorteo && !sorteo.imagen && !sorteo.archivado;
+  const colorPropio = sinImagen && colorCardValido(sorteo.color) ? sorteo.color : '';
+  b.classList.toggle('con-tinte-sorteo', sinImagen);
+  b.classList.toggle('tinte-propio', !!colorPropio);
+  if(colorPropio) b.style.setProperty('--tinte-sorteo', colorPropio); else b.style.removeProperty('--tinte-sorteo');
   if(sorteo && sorteo.imagen){
     b.style.setProperty('--fondo-sorteo', 'url("' + String(sorteo.imagen).replace(/"/g, '%22') + '")');
     b.classList.add('con-fondo-sorteo');
@@ -4959,7 +4972,7 @@ if(typeof fetch === 'function'){
 (function(){
   var CLAVE_COLOR = 'gestor_sorteos_color';
   var COLOR_PREDETERMINADO = '#5b3df0';
-  var VARS = ['--primary','--primary-hover','--primary-dark','--primary-ink','--primary-tint','--primary-tint-border','--focus','--focus-ring'];
+  var VARS = ['--primary','--primary-hover','--primary-dark','--primary-ink','--primary-tint','--primary-tint-border','--focus','--focus-ring','--card-body-bg','--progress-fill'];
   var raiz = document.documentElement;
   var colorActual = COLOR_PREDETERMINADO;
 
@@ -4982,8 +4995,14 @@ if(typeof fetch === 'function'){
   function calcularVariables(hex, temaClaro){
     var hover = mezclar(hex, '#ffffff', 0.12);
     var oscuro = mezclar(hex, '#000000', 0.18);
+    // Mismo cuerpo de card y barra de progreso que una card con ese color propio (ver colorCardAttrs)
+    var relleno = 'linear-gradient(90deg,' + hex + ',' + mezclar(hex, '#ffffff', 0.55) + ')';
+    var cuerpo = temaClaro
+      ? 'linear-gradient(180deg,' + rgba(mezclar(hex, '#ffffff', 0.82), 0.92) + ',' + rgba(mezclar(hex, '#ffffff', 0.90), 0.96) + ')'
+      : 'linear-gradient(180deg,' + rgba(mezclar(hex, '#140e28', 0.58), 0.86) + ',' + rgba(mezclar(hex, '#0e091e', 0.68), 0.93) + ')';
     if(temaClaro){
       return {
+        '--card-body-bg': cuerpo, '--progress-fill': relleno,
         '--primary': hex, '--primary-hover': hover, '--primary-dark': oscuro,
         '--primary-ink': mezclar(hex, '#000000', 0.12),
         '--primary-tint': rgba(hex, 0.12), '--primary-tint-border': rgba(hex, 0.42),
@@ -4991,6 +5010,7 @@ if(typeof fetch === 'function'){
       };
     }
     return {
+      '--card-body-bg': cuerpo, '--progress-fill': relleno,
       '--primary': hex, '--primary-hover': hover, '--primary-dark': oscuro,
       '--primary-ink': mezclar(hex, '#ffffff', 0.55),
       '--primary-tint': rgba(mezclar(hex, '#ffffff', 0.2), 0.24),
@@ -5012,7 +5032,9 @@ if(typeof fetch === 'function'){
     var esPredeterminado = hex.toLowerCase() === COLOR_PREDETERMINADO.toLowerCase();
     if(esPredeterminado){
       VARS.forEach(function(v){ raiz.style.removeProperty(v); });
+      raiz.removeAttribute('data-marca');
     } else {
+      raiz.setAttribute('data-marca', 'personalizada');
       var temaClaro = raiz.getAttribute('data-theme') === 'light';
       var vals = calcularVariables(hex, temaClaro);
       Object.keys(vals).forEach(function(k){ raiz.style.setProperty(k, vals[k]); });
