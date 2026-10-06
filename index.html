@@ -1013,6 +1013,18 @@ d.setAttribute('data-theme',t);})();
     font-family:inherit;font-size:var(--fs-sm);font-weight:600;
   }
   .menu-ajustes-item:hover{background:var(--glass-bg-hover);}
+  .actualizacion-overlay{
+    position:fixed;inset:0;z-index:3000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-4);
+    padding:var(--space-5);text-align:center;background:var(--page-bg);color:var(--text);
+    background-image:var(--app-bg-image, none);background-size:cover;background-position:center;
+  }
+  .actualizacion-overlay .actualizacion-caja{
+    max-width:360px;padding:var(--space-6) var(--space-5);border-radius:var(--radius);
+    background:var(--glass-bg-strong);border:1px solid var(--glass-border-strong);box-shadow:var(--glass-shadow);
+  }
+  .actualizacion-overlay h2{margin:var(--space-3) 0 var(--space-1);font-size:var(--fs-lg);}
+  .actualizacion-overlay p{margin:0;color:var(--muted);font-size:var(--fs-sm);}
+  .actualizacion-overlay .icon{width:34px;height:34px;color:var(--primary);}
   .menu-ajustes-pie{
     flex:none;padding:var(--space-3) var(--space-4);border-top:1px solid var(--divider);
     text-align:center;font-size:var(--fs-2xs);color:var(--muted);letter-spacing:.02em;
@@ -1748,7 +1760,7 @@ d.setAttribute('data-theme',t);})();
       <button type="button" class="menu-ajustes-item menu-ajustes-item-peligro" id="btn-cerrar-sesion" title="Cerrar sesión en este dispositivo"><svg class="icon"><use href="#icon-logout"></use></svg><span>Cerrar sesión</span></button>
     </div>
   </div>
-  <div class="menu-ajustes-pie" id="menu-ajustes-pie">V 1.0 · Copyright © ErkDevCr <span id="menu-ajustes-anio">2026</span></div>
+  <div class="menu-ajustes-pie" id="menu-ajustes-pie">V <span id="menu-ajustes-version">1.0.1</span> · Copyright © ErkDevCr <span id="menu-ajustes-anio">2026</span></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1778,6 +1790,72 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 let sb = null;
 try{ sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
 catch(e){ console.warn('No se pudo inicializar el cliente de Supabase', e); }
+
+/* =========================================================
+   VERSIÓN Y ACTUALIZACIÓN FORZADA
+   Al publicar una versión nueva se sube también `version.json` ({"v":"x.y.z"}) con el MISMO número que
+   APP_VERSION del nuevo index.html. Cada dispositivo lo consulta (sin usar la copia guardada) y, si hay una
+   versión más nueva, recarga la app sola. No toca sorteos ni licencia (viven en este dispositivo).
+   ========================================================= */
+const APP_VERSION = '1.0.1';
+const VERSION_URL = 'version.json';
+const VERSION_REVISAR_CADA_MS = 5 * 60 * 1000;
+let actualizandoApp = false;
+function versionEsMayor(a, b){ // ¿a es más nueva que b?
+  const pa = String(a).split('.').map(n => parseInt(n, 10) || 0), pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
+  for(let i = 0; i < Math.max(pa.length, pb.length); i++){
+    const x = pa[i] || 0, y = pb[i] || 0;
+    if(x !== y) return x > y;
+  }
+  return false;
+}
+function mostrarActualizacion(remota){
+  if(document.getElementById('actualizacion-overlay')) return;
+  const ov = document.createElement('div');
+  ov.id = 'actualizacion-overlay';
+  ov.className = 'actualizacion-overlay';
+  ov.setAttribute('role', 'alertdialog');
+  ov.setAttribute('aria-live', 'assertive');
+  ov.innerHTML = '<div class="actualizacion-caja"><svg class="icon icon-spin"><use href="#icon-loader"></use></svg>' +
+    '<h2>Actualizando LotApp</h2><p>Hay una versión nueva (' + String(remota).replace(/[<>&"]/g, '') + '). Esto toma unos segundos…</p></div>';
+  document.body.appendChild(ov);
+}
+function forzarActualizacion(remota){
+  // Evita un ciclo de recargas si el servidor aún entrega la versión vieja: máximo 2 intentos por versión en esta sesión
+  const clave = 'sorteos_actualizacion_' + remota;
+  let intentos = 0;
+  try{ intentos = parseInt(sessionStorage.getItem(clave), 10) || 0; }catch(e){}
+  if(intentos >= 2) return;
+  try{ sessionStorage.setItem(clave, String(intentos + 1)); }catch(e){}
+  actualizandoApp = true;
+  mostrarActualizacion(remota);
+  setTimeout(() => {
+    const u = new URL(location.href);
+    u.searchParams.set('v', remota);
+    u.searchParams.set('_', String(Date.now())); // URL distinta: salta la copia guardada del navegador y de GitHub Pages
+    location.replace(u.toString());
+  }, 1200);
+}
+async function chequearVersionApp(){
+  if(actualizandoApp) return;
+  if(!/^https?:$/.test(location.protocol)) return; // abierto como archivo local: no aplica
+  try{
+    const r = await fetch(VERSION_URL + '?t=' + Date.now(), {cache: 'no-store'});
+    if(!r.ok) return;
+    const d = await r.json();
+    const remota = d && d.v ? String(d.v) : '';
+    if(remota && versionEsMayor(remota, APP_VERSION)) forzarActualizacion(remota);
+  }catch(e){ /* sin conexión o sin version.json: la app sigue normal */ }
+}
+(function limpiarUrlTrasActualizar(){
+  try{
+    const u = new URL(location.href);
+    if(u.searchParams.has('v') || u.searchParams.has('_')){
+      u.searchParams.delete('v'); u.searchParams.delete('_');
+      history.replaceState(null, '', u.pathname + (u.search || '') + u.hash);
+    }
+  }catch(e){}
+})();
 
 const LICENCIA_KEY = 'sorteos_licencia_v1'; // {codigo, fingerprint, tipo, fechaVencimiento}
 const FINGERPRINT_KEY = 'sorteos_fingerprint_v1';
@@ -4683,6 +4761,14 @@ configurarBotonContacto('btn-licencia-contacto', 'licencia-contacto-opciones', '
   }
   mostrarPantallaLogin();
 })();
+
+/* Revisión de versión: al abrir, al volver a la app, al reconectar y cada 5 minutos */
+if(typeof fetch === 'function'){
+  chequearVersionApp();
+  document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') chequearVersionApp(); });
+  window.addEventListener('online', chequearVersionApp);
+  setInterval(chequearVersionApp, VERSION_REVISAR_CADA_MS);
+}
 </script>
 <script>
 /* =========================================================
@@ -4858,6 +4944,8 @@ configurarBotonContacto('btn-licencia-contacto', 'licencia-contacto-opciones', '
   if(salBtn) salBtn.addEventListener('click', cerrar);
   var delBtn = document.getElementById('btn-eliminar-todo');
   if(delBtn) delBtn.addEventListener('click', cerrar);
+  var ver = document.getElementById('menu-ajustes-version');
+  if(ver) ver.textContent = APP_VERSION;
   // Año del copyright automático
   var anio = document.getElementById('menu-ajustes-anio');
   if(anio) anio.textContent = String(new Date().getFullYear());
