@@ -1771,7 +1771,7 @@ d.setAttribute('data-theme',t);})();
       <button type="button" class="menu-ajustes-item menu-ajustes-item-peligro" id="btn-cerrar-sesion" title="Cerrar sesión en este dispositivo"><svg class="icon"><use href="#icon-logout"></use></svg><span>Cerrar sesión</span></button>
     </div>
   </div>
-  <div class="menu-ajustes-pie" id="menu-ajustes-pie">V <span id="menu-ajustes-version">1.0.6</span> · Copyright © ErkDevCr <span id="menu-ajustes-anio">2026</span></div>
+  <div class="menu-ajustes-pie" id="menu-ajustes-pie">V <span id="menu-ajustes-version">1.0.7</span> · Copyright © ErkDevCr <span id="menu-ajustes-anio">2026</span></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1808,7 +1808,7 @@ catch(e){ console.warn('No se pudo inicializar el cliente de Supabase', e); }
    APP_VERSION del nuevo index.html. Cada dispositivo lo consulta (sin usar la copia guardada) y, si hay una
    versión más nueva, recarga la app sola. No toca sorteos ni licencia (viven en este dispositivo).
    ========================================================= */
-const APP_VERSION = '1.0.6';
+const APP_VERSION = '1.0.7';
 const VERSION_URL = 'version.json';
 const VERSION_REVISAR_CADA_MS = 5 * 60 * 1000;
 let actualizandoApp = false;
@@ -3376,7 +3376,16 @@ function renderDashTabContent(sorteo){
           ${!esSeries ? `<button class="btn-secondary" id="btn-descargar-imagen">${icon('download')} Descargar lista (.png)</button>` : ''}
         </div>
       </div>
-      ${!soloLectura ? `
+      ${!soloLectura && pngBloqueado(sorteo) ? `
+      <section class="disp-wrap" aria-labelledby="disp-titulo">
+        <h3 class="disp-titulo" id="disp-titulo">Imagen de números disponibles</h3>
+        <p class="form-hint disp-hint" id="disp-png-bloqueado">${PNG_BLOQUEADO_TEXTO}</p>
+        <div class="disp-controls">
+          <button class="btn-primary" id="btn-descargar-disponibles" disabled title="${PNG_BLOQUEADO_TEXTO}">${icon('download')} Descargar PNG</button>
+        </div>
+      </section>
+      ` : ''}
+      ${!soloLectura && !pngBloqueado(sorteo) ? `
       <section class="disp-wrap" aria-labelledby="disp-titulo">
         <h3 class="disp-titulo" id="disp-titulo">Imagen de números disponibles</h3>
         <p class="form-hint disp-hint">Para compartir: los números en filas de 10, con los que ya no están disponibles en gris. No incluye nombres ni teléfonos.</p>
@@ -3393,7 +3402,7 @@ function renderDashTabContent(sorteo){
     if(!esSeries){
       document.getElementById('btn-descargar-imagen').addEventListener('click', ()=> descargarImagenSorteo(sorteo));
     }
-    if(!soloLectura) iniciarImagenDisponibles(sorteo);
+    if(!soloLectura && !pngBloqueado(sorteo)) iniciarImagenDisponibles(sorteo);
     return;
   }
 
@@ -3740,7 +3749,7 @@ function renderNumbersGrid(sorteo, filtro){
     const ro = soloLectura ? 'readonly' : '';
     return `<button class="num-btn ${cls} ${sel} ${ro}" data-numero="${n.numero}" title="${n.estado === 'disponible' ? 'Disponible' : escapeHtml(n.comprador||'')}">${n.numero}</button>`;
   }).join('') + (soloLectura ? '' : `<div class="numbers-descarga">
-    <button type="button" class="btn-secondary" id="btn-descargar-disponibles-grid" title="Descarga una imagen con los números disponibles, con los colores del tema actual">${icon('download')} Descargar números disponibles</button>
+    <button type="button" class="btn-secondary" id="btn-descargar-disponibles-grid"${pngBloqueado(sorteo) ? ' disabled' : ''} title="${pngBloqueado(sorteo) ? PNG_BLOQUEADO_TEXTO : 'Descarga una imagen con los números disponibles, con los colores del tema actual'}">${icon('download')} Descargar números disponibles</button>
   </div>`);
   const btnDescarga = document.getElementById('btn-descargar-disponibles-grid');
   if(btnDescarga) btnDescarga.addEventListener('click', () => descargarDisponiblesDesdeGrilla(sorteo));
@@ -4404,6 +4413,7 @@ function truncarTexto(ctx, texto, anchoMax){
 }
 
 function descargarImagenSorteo(sorteo){
+  if(pngBloqueado(sorteo)){ toast(PNG_BLOQUEADO_TEXTO); return; }
   if(sorteo.tipo === 'series'){ toast('La descarga de imagen solo está disponible para sorteos regulares'); return; }
 
   const filas = sorteo.numeros.slice().sort((a,b)=> a.numero.localeCompare(b.numero));
@@ -4462,6 +4472,12 @@ function descargarImagenSorteo(sorteo){
    Versión clara fija para compartir. 1080 px de ancho; hasta 1000 números por imagen
    (100 filas de 10 ≈ 1080×7300 px, dentro de los límites de canvas de Chrome/Safari/iOS).
    Si una serie tiene más de 1000 números, se elige el tramo. */
+/* Con más de 500 números repartidos en más de una serie no se exporta PNG: solo Excel */
+const PNG_MAX_NUMEROS_SERIES = 500;
+const PNG_BLOQUEADO_TEXTO = `Con más de ${PNG_MAX_NUMEROS_SERIES} números en más de una serie solo se puede exportar a Excel.`;
+function pngBloqueado(sorteo){
+  return !!sorteo && sorteo.tipo === 'series' && (sorteo.cantidadSeries || 0) > 1 && (sorteo.numeros || []).length > PNG_MAX_NUMEROS_SERIES;
+}
 const DISP_POR_IMAGEN = 1000;
 const DISP_FUENTE = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
 function dispPartirTexto(ctx, texto, ancho, maxLineas){
@@ -4630,6 +4646,7 @@ function generarImagenesDisponibles(sorteo, serie){
 }
 /* Botón bajo la grilla: descarga la imagen de disponibles de la serie que se está viendo, con los colores del tema */
 async function descargarDisponiblesDesdeGrilla(sorteo){
+  if(pngBloqueado(sorteo)){ toast(PNG_BLOQUEADO_TEXTO); return; }
   await precargarFondoDisp(sorteo);
   const serie = sorteo.tipo === 'series' ? (currentSerie || 1) : 1;
   const imagenes = generarImagenesDisponibles(sorteo, serie);
