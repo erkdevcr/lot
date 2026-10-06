@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gestor de Sorteos</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* Tema antes del primer pintado: preferencia guardada o, si no hay, la del sistema */
 (function(){var d=document.documentElement,t=null;try{t=localStorage.getItem('gestor_sorteos_tema');}catch(e){}
@@ -466,17 +467,21 @@ d.setAttribute('data-theme',t);})();
     position:absolute;inset:0;
     background:linear-gradient(180deg, rgba(10,8,30,.05) 0%, rgba(9,7,26,.38) 55%, rgba(5,4,18,.9) 100%);
   }
+  /* El alto del banner lo fija .dash-banner-sizer (copia invisible de título + fecha con el relleno
+     de siempre); la info real va anclada abajo y puede sumar el chip sin que el banner crezca. */
+  .dash-banner-sizer{position:relative;width:100%;visibility:hidden;pointer-events:none;padding:64px 64px var(--space-3) var(--space-4);}
   .dash-banner-info{
-    position:relative;z-index:1;color:#fff;width:100%;padding:64px 64px var(--space-3) var(--space-4);
-    /* El degradado acompaña al texto: protege el título aunque crezca a varias líneas */
-    background:linear-gradient(180deg, rgba(5,4,18,0) 0, rgba(5,4,18,.55) 36px, rgba(5,4,18,.82) 60px, rgba(5,4,18,.9) 100%);
+    position:absolute;left:0;right:0;bottom:0;z-index:1;color:#fff;padding:28px 64px var(--space-3) var(--space-4);
+    /* El degradado acompaña al texto: protege el título y el chip aunque crezcan a varias líneas */
+    background:linear-gradient(180deg, rgba(5,4,18,0) 0, rgba(5,4,18,.6) 16px, rgba(5,4,18,.84) 28px, rgba(5,4,18,.9) 100%);
   }
-  .dash-banner-title{
+  .dash-banner-title, .dbs-title{
     font-size:var(--fs-xl);line-height:1.25;font-weight:700;overflow-wrap:anywhere;
     text-shadow:0 2px 8px rgba(0,0,0,.35);
   }
+  .dbs-fecha{font-size:var(--fs-xs);font-weight:600;margin-top:2px;line-height:var(--lh);}
   .dash-banner-fecha{
-    font-size:var(--fs-xs);font-weight:600;margin-top:2px;color:rgba(255,255,255,.88);
+    font-size:var(--fs-xs);font-weight:600;color:rgba(255,255,255,.88);
     text-shadow:0 1px 4px rgba(0,0,0,.35);
   }
 
@@ -500,7 +505,8 @@ d.setAttribute('data-theme',t);})();
     flex-wrap:wrap;box-shadow:var(--glass-shadow);
   }
   .dash-info{flex:1;min-width:220px;display:flex;flex-direction:column;gap:var(--space-2);}
-  .dash-info .countdown-row{min-height:var(--control-h);}
+  .dash-header-row{min-height:var(--control-h);display:flex;align-items:center;padding-right:300px;}
+  .dash-header-title{font-size:var(--fs-md);font-weight:700;color:var(--text);}
   .dash-fecha-row{display:none;} /* la fecha ya está en el banner */
   .winner-box{
     background:var(--primary-tint);border:1px solid var(--primary-tint-border);border-radius:var(--radius-sm);
@@ -512,7 +518,6 @@ d.setAttribute('data-theme',t);})();
   .dash-stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--space-3);margin-top:var(--space-2);}
   .dash-header > .dash-actions{position:absolute;top:var(--space-5);right:var(--space-5);display:flex;gap:var(--space-2);}
   .dash-actions .btn-danger .icon{width:16px;height:16px;}
-  .dash-info .countdown-row{padding-right:300px;}
   .countdown-archived{display:inline-flex;align-items:center;gap:6px;background:var(--glass-bg-soft);color:var(--text);border-color:var(--glass-border-strong);}
   .countdown-archived .icon{width:13px;height:13px;}
   .stat-box{
@@ -647,7 +652,6 @@ d.setAttribute('data-theme',t);})();
   }
 
   .size-control{display:flex;align-items:center;gap:var(--space-2);}
-  .size-control .size-label{font-size:var(--fs-sm);line-height:1;color:var(--primary-ink);min-width:72px;text-align:center;letter-spacing:.14em;}
 
   .num-btn.selected{outline:3px solid var(--focus);outline-offset:1px;position:relative;}
   .num-btn.selected::after{
@@ -713,9 +717,9 @@ d.setAttribute('data-theme',t);})();
     .dash-header{flex-direction:column;padding:var(--space-4);gap:var(--space-4);}
     .dash-header > .dash-actions{position:static;}
     .dash-header > .dash-actions > button{flex:1 1 0;}
-    .dash-info .countdown-row{padding-right:0;}
+    .dash-header-row{padding-right:0;min-height:0;}
     .dash-stats{grid-template-columns:repeat(2,minmax(0,1fr));}
-    .legend{margin-left:0;}
+    .legend{gap:var(--space-3);}
     .toolbar input[type=text]{max-width:none;flex-basis:100%;}
     .modal-header, .modal-footer{padding-left:var(--space-4);padding-right:var(--space-4);}
     .modal-body{padding:var(--space-4);}
@@ -774,21 +778,6 @@ d.setAttribute('data-theme',t);})();
   .descargas-wrap > div > button{flex:1 1 240px;}
   .descargas-wrap > .form-hint:last-child:not(:first-child){margin-top:var(--space-3);}
 
-  /* Historial: columnas parejas en escritorio */
-  #dash-historial-content table{table-layout:fixed;}
-  #dash-historial-content td{overflow-wrap:anywhere;}
-  #dash-historial-content > .table-wrap:nth-child(2) th:first-child,
-  #dash-historial-content > .table-wrap:nth-child(4) th:first-child{width:96px;}
-  #dash-historial-content > .table-wrap:nth-child(2) table:has(th:nth-child(6)) th:first-child,
-  #dash-historial-content > .table-wrap:nth-child(4) table:has(th:nth-child(5)) th:first-child{width:72px;}
-  #dash-historial-content > .table-wrap:nth-child(2) table:has(th:nth-child(6)) th:nth-child(2),
-  #dash-historial-content > .table-wrap:nth-child(4) table:has(th:nth-child(5)) th:nth-child(2){width:96px;}
-  #dash-historial-content > .table-wrap:nth-child(2) th:last-child{width:236px;}
-  #dash-historial-content > .table-wrap:nth-child(4) th:last-child{width:128px;}
-  #dash-historial-content > .hist-liberados th:first-child{width:96px;}
-  #dash-historial-content > .hist-liberados table:has(th:nth-child(5)) th:first-child{width:72px;}
-  #dash-historial-content > .hist-liberados table:has(th:nth-child(5)) th:nth-child(2){width:96px;}
-
   /* Errores de validación junto al campo */
   .field-error{
     display:flex;align-items:flex-start;gap:var(--space-2);margin-top:var(--space-2);
@@ -804,59 +793,6 @@ d.setAttribute('data-theme',t);})();
   }
 
   @media (max-width:640px){
-    /* Historial en móvil: cada fila es una tarjeta, sin desplazamiento lateral */
-    #dash-historial-content table, #dash-historial-content tbody,
-    #dash-historial-content tr, #dash-historial-content td{display:block;width:100%;}
-    #dash-historial-content table{background:none;border:none;border-radius:0;backdrop-filter:none;-webkit-backdrop-filter:none;overflow:visible;}
-    #dash-historial-content thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
-    #dash-historial-content .table-wrap{overflow:visible;border-radius:0;}
-    #dash-historial-content tbody tr{
-      margin-bottom:var(--space-2);padding:var(--space-2) var(--space-4);border-radius:var(--radius);
-      background:var(--glass-bg);border:1px solid var(--glass-border);
-      backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
-    }
-    #dash-historial-content tbody tr:hover{background:var(--glass-bg);}
-    #dash-historial-content tbody td{
-      display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-3);
-      padding:var(--space-2) 0;border-bottom:1px solid var(--divider);text-align:right;
-    }
-    #dash-historial-content tbody td::before{
-      flex-shrink:0;text-align:left;font-size:var(--fs-2xs);font-weight:700;letter-spacing:.04em;
-      text-transform:uppercase;color:var(--muted);
-    }
-    #dash-historial-content tbody td.row-actions{display:flex;gap:var(--space-2);border-bottom:none;padding:var(--space-3) 0 var(--space-2);justify-content:stretch;white-space:normal;}
-    #dash-historial-content tbody td.row-actions::before{display:none;}
-    #dash-historial-content tbody td.row-actions > *{flex:1;margin:0;}
-    #dash-historial-content tbody td.row-actions > span{text-align:left;}
-    /* Etiquetas: Pendientes sin / con serie */
-    #dash-historial-content > .table-wrap:nth-child(2) table:not(:has(th:nth-child(6))) td:nth-child(1)::before{content:'Número';}
-    #dash-historial-content > .table-wrap:nth-child(2) table:not(:has(th:nth-child(6))) td:nth-child(2)::before{content:'Comprador';}
-    #dash-historial-content > .table-wrap:nth-child(2) table:not(:has(th:nth-child(6))) td:nth-child(3)::before{content:'Teléfono';}
-    #dash-historial-content > .table-wrap:nth-child(2) table:not(:has(th:nth-child(6))) td:nth-child(4)::before{content:'Apartado';}
-    #dash-historial-content > .table-wrap:nth-child(2) table:has(th:nth-child(6)) td:nth-child(1)::before{content:'Serie';}
-    #dash-historial-content > .table-wrap:nth-child(2) table:has(th:nth-child(6)) td:nth-child(2)::before{content:'Número';}
-    #dash-historial-content > .table-wrap:nth-child(2) table:has(th:nth-child(6)) td:nth-child(3)::before{content:'Comprador';}
-    #dash-historial-content > .table-wrap:nth-child(2) table:has(th:nth-child(6)) td:nth-child(4)::before{content:'Teléfono';}
-    #dash-historial-content > .table-wrap:nth-child(2) table:has(th:nth-child(6)) td:nth-child(5)::before{content:'Apartado';}
-    /* Etiquetas: Pagados sin / con serie */
-    #dash-historial-content > .table-wrap:nth-child(4) table:not(:has(th:nth-child(5))) td:nth-child(1)::before{content:'Número';}
-    #dash-historial-content > .table-wrap:nth-child(4) table:not(:has(th:nth-child(5))) td:nth-child(2)::before{content:'Comprador';}
-    #dash-historial-content > .table-wrap:nth-child(4) table:not(:has(th:nth-child(5))) td:nth-child(3)::before{content:'Pagado';}
-    #dash-historial-content > .table-wrap:nth-child(4) table:has(th:nth-child(5)) td:nth-child(1)::before{content:'Serie';}
-    #dash-historial-content > .table-wrap:nth-child(4) table:has(th:nth-child(5)) td:nth-child(2)::before{content:'Número';}
-    #dash-historial-content > .table-wrap:nth-child(4) table:has(th:nth-child(5)) td:nth-child(3)::before{content:'Comprador';}
-    #dash-historial-content > .table-wrap:nth-child(4) table:has(th:nth-child(5)) td:nth-child(4)::before{content:'Pagado';}
-    /* Etiquetas: Liberados sin / con serie */
-    #dash-historial-content > .hist-liberados table:not(:has(th:nth-child(5))) td:nth-child(1)::before{content:'Número';}
-    #dash-historial-content > .hist-liberados table:not(:has(th:nth-child(5))) td:nth-child(2)::before{content:'Comprador anterior';}
-    #dash-historial-content > .hist-liberados table:not(:has(th:nth-child(5))) td:nth-child(3)::before{content:'Liberado';}
-    #dash-historial-content > .hist-liberados table:not(:has(th:nth-child(5))) td:nth-child(4)::before{content:'Detalle';}
-    #dash-historial-content > .hist-liberados table:has(th:nth-child(5)) td:nth-child(1)::before{content:'Serie';}
-    #dash-historial-content > .hist-liberados table:has(th:nth-child(5)) td:nth-child(2)::before{content:'Número';}
-    #dash-historial-content > .hist-liberados table:has(th:nth-child(5)) td:nth-child(3)::before{content:'Comprador anterior';}
-    #dash-historial-content > .hist-liberados table:has(th:nth-child(5)) td:nth-child(4)::before{content:'Liberado';}
-    #dash-historial-content > .hist-liberados table:has(th:nth-child(5)) td:nth-child(5)::before{content:'Detalle';}
-    #dash-historial-content > .hist-liberados tbody td:last-child{border-bottom:none;}
     .hist-filters input{max-width:none;}
 
     /* Barra de selección a todo el ancho; deja espacio para la última fila */
@@ -869,8 +805,8 @@ d.setAttribute('data-theme',t);})();
     .selection-bar .sel-hint{white-space:normal;flex:1 1 100%;}
     body:has(.selection-bar.show) .app{padding-bottom:140px;}
 
-    .dash-banner-title{font-size:var(--fs-lg);}
-    .dash-banner-info{padding-top:56px;}
+    .dash-banner-title, .dbs-title{font-size:var(--fs-lg);}
+    .dash-banner-sizer{padding-top:56px;}
     #num-modal-body > div:last-child{margin:var(--space-4) calc(-1 * var(--space-4)) calc(-1 * var(--space-4));padding:var(--space-3) var(--space-4);}
   }
   @media (max-width:520px){
@@ -987,6 +923,170 @@ d.setAttribute('data-theme',t);})();
   @media (prefers-reduced-motion: reduce){
     .theme-toggle .theme-icon{transition:none;}
   }
+
+  /* =========================================================
+     Ajustes 06-oct
+     ========================================================= */
+
+  /* 2) Chip de cuenta regresiva / «Archivado el…» debajo del título, dentro del banner.
+     El banner es oscuro en los dos temas, así que el chip usa siempre la paleta oscura. */
+  .dash-banner-meta{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-1) var(--space-2);margin-top:var(--space-1);}
+  .dash-banner-meta{column-gap:var(--space-3);}
+  .dash-banner .f-corta{display:none;}
+  .dash-banner:not(:has(.dash-banner-edit)) .dash-banner-info{padding-right:var(--space-4);}
+  @media (max-width:520px){
+    /* Archivado: chip y fecha en una sola línea para no chocar con la marca «Archivado · solo lectura» */
+    .dash-banner:not(:has(.dash-banner-edit)) .f-larga{display:none;}
+    .dash-banner:not(:has(.dash-banner-edit)) .f-corta{display:inline;}
+    .dash-banner:not(:has(.dash-banner-edit)) .dash-banner-meta{flex-wrap:nowrap;}
+    .dash-banner:not(:has(.dash-banner-edit)) .dash-banner-meta > *{white-space:nowrap;}
+  }
+  .dash-banner-meta .countdown-pill{line-height:1.4;padding:1px var(--space-2);text-shadow:none;
+    backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}
+  .dash-banner-meta .countdown-ok{background:rgba(20,70,52,.72);color:#8ff0c4;border-color:rgba(52,192,138,.55);}
+  .dash-banner-meta .countdown-soon{background:rgba(84,58,8,.72);color:#ffd88a;border-color:rgba(242,181,68,.55);}
+  .dash-banner-meta .countdown-today{background:rgba(92,24,36,.74);color:#ffc0c9;border-color:rgba(255,141,156,.55);}
+  .dash-banner-meta .countdown-past{background:rgba(40,34,62,.78);color:rgba(255,255,255,.86);border-color:rgba(255,255,255,.28);}
+  .dash-banner-meta .countdown-archived{display:inline-flex;align-items:center;gap:6px;background:rgba(40,34,62,.78);color:#fff;border-color:rgba(255,255,255,.3);}
+  .dash-banner-meta .countdown-archived .icon{width:13px;height:13px;}
+
+  /* 1/3) Acciones: «Editar fecha»/«Editar sorteo» arriba a la derecha; «Archivar»/«Eliminar» al final */
+  .dash-header > .dash-actions > button{min-height:var(--control-h);}
+  .dash-actions-final{display:flex;justify-content:flex-end;gap:var(--space-2);margin-top:var(--space-4);
+    padding:var(--space-3) var(--space-4);border-radius:var(--radius);
+    background:var(--glass-bg);border:1px solid var(--glass-border);box-shadow:var(--glass-shadow);
+    backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);}
+  .dash-actions-final > button{min-height:var(--control-h);}
+  @media (max-width:640px){
+    .dash-actions-final{flex-wrap:wrap;}
+    .dash-actions-final > button{flex:1 1 auto;white-space:nowrap;}
+  }
+
+  /* 5) Tamaño de la grilla y leyenda en una sola fila (también en 390 y 320) */
+  .toolbar .size-control{flex-shrink:0;}
+  .toolbar .legend{flex-wrap:nowrap;min-width:0;white-space:nowrap;}
+  @media (max-width:420px){
+    .toolbar{gap:var(--space-2) var(--space-3);}
+    .toolbar .legend{gap:var(--space-2);font-size:var(--fs-2xs);}
+    .toolbar .legend span{gap:5px;}
+    .toolbar .legend .box{width:12px;height:12px;border-radius:3px;}
+  }
+  @media (max-width:359.98px){
+    .toolbar{padding:var(--space-2);gap:var(--space-2);}
+    .toolbar .size-control{gap:var(--space-1);}
+    .toolbar .size-control .icon-btn{width:36px;height:36px;}
+    .toolbar .legend{gap:6px;font-size:10.5px;}
+    .toolbar .legend span{gap:3px;}
+    .toolbar .legend .box{width:10px;height:10px;}
+  }
+
+  /* 6) Nivel mínimo: siempre filas de 10 */
+  .numbers-grid.grid-diez{grid-template-columns:repeat(10,minmax(0,46px));justify-content:start;gap:6px;}
+  .numbers-grid.grid-diez .num-btn{padding:0 1px;height:38px;font-size:13px;line-height:1;letter-spacing:-.02em;}
+  @media (min-width:641px){ .numbers-grid.grid-diez{justify-content:center;} } /* escritorio: 10 por fila centrada en su panel */
+  @media (max-width:640px){
+    .numbers-grid.grid-diez{grid-template-columns:repeat(10,minmax(0,1fr));gap:4px;padding-left:var(--space-2);padding-right:var(--space-2);}
+    .numbers-grid.grid-diez .num-btn{height:34px;font-size:12px;}
+  }
+  @media (max-width:340px){
+    .numbers-grid.grid-diez .num-btn{font-size:11px;letter-spacing:-.03em;}
+  }
+  .numbers-grid.grid-diez .num-btn.selected::after{top:-6px;right:-6px;width:14px;height:14px;font-size:9px;line-height:14px;}
+
+  /* 4) Imagen de números disponibles */
+  .disp-wrap{margin-top:var(--space-4);border-radius:var(--radius);padding:var(--space-5);
+    background:var(--glass-bg);border:1px solid var(--glass-border);box-shadow:var(--glass-shadow);
+    backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);}
+  .disp-titulo{margin:0 0 var(--space-2);font-size:var(--fs-lg);font-weight:700;color:var(--text);}
+  .disp-hint{margin:0 0 var(--space-4);font-size:var(--fs-sm);}
+  .disp-controls{display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--space-3);margin-bottom:var(--space-4);}
+  .disp-field{display:flex;flex-direction:column;gap:var(--space-1);font-size:var(--fs-xs);font-weight:600;color:var(--muted);}
+  .disp-field[hidden]{display:none;}
+  .disp-field select{min-width:160px;min-height:var(--control-h);}
+  .disp-controls .btn-primary{min-height:var(--control-h);}
+  .disp-preview{border-radius:var(--radius-sm);padding:var(--space-3);background:var(--glass-bg-soft);border:1px solid var(--glass-border);}
+  .disp-preview canvas{display:block;width:100%;max-width:720px;height:auto;margin:0 auto;border-radius:var(--radius-sm);
+    box-shadow:0 6px 24px rgba(10,6,30,.18);}
+  @media (max-width:640px){
+    .disp-wrap{padding:var(--space-4);}
+    .disp-field{flex:1 1 140px;}
+    .disp-field select{min-width:0;width:100%;}
+    .disp-controls .btn-primary{flex:1 1 100%;}
+    .disp-preview{padding:var(--space-2);}
+  }
+
+  /* 9) Historial: lista plegable (mismo patrón en escritorio y móvil) */
+  .hist-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2);}
+  .hist-item{border-radius:var(--radius);background:var(--glass-bg);border:1px solid var(--glass-border);
+    backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);}
+  .hist-toggle{
+    width:100%;min-height:48px;display:flex;align-items:center;gap:var(--space-3);
+    padding:var(--space-2) var(--space-4);border:none;border-radius:var(--radius);background:transparent;
+    color:var(--text);font:inherit;font-size:var(--fs-md);text-align:left;cursor:pointer;
+  }
+  .hist-toggle:hover{background:var(--glass-bg-soft);}
+  .hist-toggle:focus-visible{outline:2px solid var(--focus);outline-offset:2px;}
+  .hist-item.open .hist-toggle{border-radius:var(--radius) var(--radius) 0 0;}
+  .hist-toggle-txt{flex:1;min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2);}
+  .hist-lbl{font-size:var(--fs-sm);color:var(--muted);font-weight:600;}
+  .hist-num{font-size:var(--fs-lg);font-weight:700;font-variant-numeric:tabular-nums;}
+  .hist-serie{font-size:var(--fs-xs);font-weight:700;padding:1px var(--space-2);border-radius:var(--radius-sm);
+    background:var(--primary-tint);color:var(--on-tint);border:1px solid var(--primary-tint-border);}
+  .hist-chevron{width:18px;height:18px;color:var(--muted);transition:transform .26s ease;}
+  .hist-item.open .hist-chevron{transform:rotate(180deg);}
+  .hist-panel{display:grid;grid-template-rows:0fr;opacity:0;visibility:hidden;
+    transition:grid-template-rows .26s ease, opacity .2s ease, visibility 0s linear .26s;}
+  .hist-item.open .hist-panel{grid-template-rows:1fr;opacity:1;visibility:visible;
+    transition:grid-template-rows .26s ease, opacity .22s ease, visibility 0s linear 0s;}
+  .hist-panel-inner{min-height:0;overflow:hidden;}
+  .hist-datos{margin:0;padding:0 var(--space-4);border-top:1px solid var(--divider);}
+  .hist-datos > div{display:grid;grid-template-columns:minmax(110px,30%) 1fr;gap:var(--space-3);align-items:baseline;
+    padding:var(--space-2) 0;border-bottom:1px solid var(--divider);}
+  .hist-datos > div:last-child{border-bottom:none;}
+  .hist-datos dt{font-size:var(--fs-2xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);}
+  .hist-datos dd{margin:0;font-size:var(--fs-sm);color:var(--text);overflow-wrap:anywhere;}
+  .hist-acciones{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:var(--space-2);padding:var(--space-2) var(--space-4) var(--space-4);}
+  .hist-lock{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--muted);}
+  @media (max-width:640px){
+    .hist-acciones > button{flex:1 1 0;}
+    .hist-acciones{justify-content:stretch;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .hist-panel, .hist-item.open .hist-panel, .hist-chevron{transition:none;}
+  }
+
+  /* ---------- Login / licencia por código ---------- */
+  .login-screen{
+    position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;
+    padding:var(--space-5);background:var(--page-bg);
+    background-image:var(--app-bg-image, none);background-size:cover;background-position:center;
+  }
+  .login-card{
+    width:100%;max-width:420px;background:var(--glass-bg);border:1px solid var(--glass-border);
+    border-radius:var(--radius);box-shadow:var(--glass-shadow);backdrop-filter:var(--glass-blur);
+    -webkit-backdrop-filter:var(--glass-blur);padding:var(--space-6) var(--space-5);
+  }
+  .login-logo{width:52px;height:52px;border-radius:14px;background:var(--primary);color:#fff;
+    display:flex;align-items:center;justify-content:center;margin:0 auto var(--space-4);}
+  .login-logo .icon{width:26px;height:26px;}
+  .login-card h1{font-size:var(--fs-xl);text-align:center;margin:0 0 var(--space-1);}
+  .login-sub{text-align:center;color:var(--muted);font-size:var(--fs-sm);margin:0 0 var(--space-5);}
+  .login-msg{font-size:var(--fs-sm);margin-top:var(--space-3);min-height:1.2em;}
+  .login-msg-error{color:var(--danger-light, var(--danger));}
+  .login-msg-info{color:var(--muted);}
+  .login-exito{font-size:var(--fs-sm);line-height:1.6;background:var(--pagado-bg);border:1px solid var(--pagado);
+    color:var(--text);border-radius:var(--radius-sm);padding:var(--space-4);margin-bottom:var(--space-4);}
+  .login-alerta{font-size:var(--fs-sm);line-height:1.6;background:var(--danger-bg);border:1px solid var(--danger-border);
+    color:var(--text);border-radius:var(--radius-sm);padding:var(--space-4);margin-bottom:var(--space-4);}
+  .login-card .btn-primary, .login-card .btn-secondary, .login-card .btn-danger{width:100%;justify-content:center;margin-top:var(--space-2);}
+
+  .licencia-banner{
+    display:none;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap;
+    padding:var(--space-3) var(--space-4);margin:0 0 var(--space-4);border-radius:var(--radius-sm);
+    font-size:var(--fs-sm);
+  }
+  .licencia-banner-aviso{background:var(--apartado-bg);border:1px solid var(--apartado);color:var(--text);}
+  .licencia-banner-vencida{background:var(--danger-bg);border:1px solid var(--danger-border);color:var(--text);}
 </style>
 </head>
 <body>
@@ -1011,6 +1111,49 @@ d.setAttribute('data-theme',t);})();
     <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 2"/></symbol>
   </defs>
 </svg>
+
+<!-- PANTALLA DE ACCESO: bienvenida + código de licencia -->
+<div class="login-screen" id="pantalla-login" style="display:none;">
+  <div class="login-card">
+    <div class="login-logo"><svg class="icon"><use href="#icon-lock"></use></svg></div>
+    <h1>Bienvenido a Sorteos Personalizados</h1>
+    <p class="login-sub">Ingresa tu código de acceso para comenzar</p>
+
+    <div id="login-paso-codigo">
+      <div class="form-group">
+        <label for="login-codigo">Código de acceso</label>
+        <input type="text" id="login-codigo" placeholder="Ej: ABCD-1234" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      </div>
+      <div class="form-group">
+        <label for="login-nombre">Tu nombre</label>
+        <input type="text" id="login-nombre" placeholder="Nombre completo" autocomplete="name">
+      </div>
+      <div class="form-group">
+        <label for="login-telefono">Teléfono (opcional)</label>
+        <input type="tel" id="login-telefono" placeholder="Ej: 8888-8888" autocomplete="tel">
+      </div>
+      <button class="btn-primary" id="btn-login-validar">Ingresar</button>
+      <div class="login-msg" id="login-msg"></div>
+    </div>
+
+    <div id="login-paso-otro-dispositivo" style="display:none;">
+      <div class="login-alerta">
+        Este código ya está activo en <b>otro dispositivo</b>. Si continúas aquí, ese dispositivo
+        anterior quedará sin poder iniciar sesión y sus datos no se podrán recuperar. Si vas a
+        cambiar de equipo, exporta primero el respaldo (JSON) desde el dispositivo anterior y
+        luego impórtalo aquí.
+      </div>
+      <button class="btn-secondary" id="btn-login-cancelar-otro">Cancelar</button>
+      <button class="btn-danger" id="btn-login-forzar">Continuar de todos modos</button>
+    </div>
+
+    <div id="login-paso-exito" style="display:none;">
+      <div class="login-exito" id="login-exito-msg"></div>
+      <button class="btn-primary" id="btn-login-continuar">Comenzar a usar la app</button>
+    </div>
+  </div>
+</div>
+
 <div class="app">
 
   <header class="topbar">
@@ -1030,9 +1173,12 @@ d.setAttribute('data-theme',t);})();
         <svg class="icon theme-icon theme-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.8v2.1M12 19.1v2.1M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M2.8 12h2.1M19.1 12h2.1M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5"/></svg>
         <svg class="icon theme-icon theme-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19.6 14.6A7.9 7.9 0 0 1 9.4 4.4a7.9 7.9 0 1 0 10.2 10.2Z"/></svg>
       </button>
+      <button class="btn-secondary" id="btn-mi-licencia" title="Ver mi licencia"><svg class="icon"><use href="#icon-lock"></use></svg><span class="btn-label">Mi licencia</span></button>
       <button class="btn-secondary" id="btn-abrir-respaldo" title="Exportar o importar una copia de seguridad"><svg class="icon"><use href="#icon-download"></use></svg><span class="btn-label">Respaldo (JSON)</span></button>
     </div>
   </header>
+
+  <div class="licencia-banner" id="licencia-banner"></div>
 
   <!-- VISTA: HOME -->
   <section id="view-home" class="view active">
@@ -1195,6 +1341,28 @@ d.setAttribute('data-theme',t);})();
   </div>
 </div>
 
+<!-- MODAL: RESTAURAR SORTEO ARCHIVADO (nuevo vs. continuar) -->
+<div class="modal-overlay" id="modal-restaurar">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Restaurar sorteo</h3>
+      <button class="close-x" data-close="modal-restaurar"><svg class="icon"><use href="#icon-close"></use></svg></button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--muted);margin-top:0;"><b>Continuar:</b> mantiene los números apartados y pagados tal como quedaron (útil si se archivó por error). <b>Empezar de nuevo:</b> deja todos los números disponibles otra vez; el resto del sorteo (título, imagen, valor) no cambia.</p>
+      <div class="form-group" id="restaurar-grupo-fecha" style="display:none;">
+        <label for="f-restaurar-fecha">Este sorteo ya venció. Indica la nueva fecha para restaurarlo</label>
+        <input type="date" id="f-restaurar-fecha">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" data-close="modal-restaurar">Cancelar</button>
+      <button class="btn-secondary" id="btn-restaurar-continuar">Continuar</button>
+      <button class="btn-primary" id="btn-restaurar-nuevo">Empezar de nuevo</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: GESTIONAR NUMERO -->
 <div class="modal-overlay" id="modal-numero">
   <div class="modal">
@@ -1246,6 +1414,21 @@ d.setAttribute('data-theme',t);})();
   </div>
 </div>
 
+<!-- MODAL: MI LICENCIA -->
+<div class="modal-overlay" id="modal-licencia">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Mi licencia</h3>
+      <button class="close-x" data-close="modal-licencia"><svg class="icon"><use href="#icon-close"></use></svg></button>
+    </div>
+    <div class="modal-body" id="licencia-info"></div>
+    <div class="modal-footer">
+      <button class="btn-secondary" data-close="modal-licencia">Cerrar</button>
+      <button class="btn-primary" id="btn-licencia-nuevo-codigo">Ingresar otro código</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <div class="selection-bar" id="selection-bar">
@@ -1265,6 +1448,242 @@ d.setAttribute('data-theme',t);})();
    Migra automáticamente datos antiguos guardados en localStorage.
    ========================================================= */
 
+/* =========================================================
+   LICENCIA POR CÓDIGO (Supabase) — candado de acceso a la app
+   ========================================================= */
+const SUPABASE_URL = 'https://mfwlacwhgmxudkvjawsi.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1md2xhY3doZ214dWRrdmphd3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyOTUxOTAsImV4cCI6MjEwNjg3MTE5MH0.Hb3R97_AJdi0XamDEbS1mvuO1WktB06gC1x3kcJCSlA'; // clave pública (anon): segura de incluir en el cliente, las tablas no son accesibles directamente (ver schema.sql)
+let sb = null;
+try{ sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
+catch(e){ console.warn('No se pudo inicializar el cliente de Supabase', e); }
+
+const LICENCIA_KEY = 'sorteos_licencia_v1'; // {codigo, fingerprint, tipo, fechaVencimiento}
+const FINGERPRINT_KEY = 'sorteos_fingerprint_v1';
+let appPrincipalIniciada = false;
+let codigoEnCurso = null; // guarda {codigo, nombre, telefono} mientras se resuelve "otro dispositivo"
+
+/* -- Fingerprint: identificador de este dispositivo/navegador, generado una
+   sola vez y guardado en local. No identifica a la persona, solo distingue
+   equipos para que una licencia esté activa en uno solo a la vez. -- */
+function hashSimple(str){
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for(let i=0; i<str.length; i++){
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h1 >>> 0).toString(16).padStart(8,'0') + (h2 >>> 0).toString(16).padStart(8,'0');
+}
+function obtenerFingerprint(){
+  let fp = null;
+  try{ fp = localStorage.getItem(FINGERPRINT_KEY); }catch(e){}
+  if(fp) return fp;
+  const partes = [];
+  try{
+    partes.push(navigator.userAgent || '');
+    partes.push(navigator.platform || '');
+    partes.push(String(screen.width) + 'x' + String(screen.height));
+    partes.push(String(navigator.hardwareConcurrency || ''));
+  }catch(e){}
+  partes.push(Date.now().toString(36));
+  partes.push(Math.random().toString(36).slice(2));
+  fp = hashSimple(partes.join('|')) + '-' + Math.random().toString(36).slice(2, 10);
+  try{ localStorage.setItem(FINGERPRINT_KEY, fp); }catch(e){}
+  return fp;
+}
+
+function leerLicenciaLocal(){
+  try{ const raw = localStorage.getItem(LICENCIA_KEY); return raw ? JSON.parse(raw) : null; }
+  catch(e){ return null; }
+}
+function guardarLicenciaLocal(lic){
+  try{ localStorage.setItem(LICENCIA_KEY, JSON.stringify(lic)); }catch(e){}
+}
+function borrarLicenciaLocal(){
+  try{ localStorage.removeItem(LICENCIA_KEY); }catch(e){}
+}
+function licenciaVigente(lic){
+  return !!(lic && lic.fechaVencimiento && new Date(lic.fechaVencimiento) > new Date());
+}
+function diasRestantesLicencia(fechaVencimientoISO){
+  const venc = new Date(fechaVencimientoISO);
+  const ahora = new Date();
+  return Math.ceil((venc - ahora) / 86400000);
+}
+function formatFechaCortaDDMMYY(fechaISO){
+  const d = new Date(fechaISO);
+  const pad2 = n => String(n).padStart(2, '0');
+  return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + String(d.getFullYear()).slice(-2);
+}
+function mesesDeTipoLicencia(tipo){
+  return tipo === '1_mes' ? 1 : tipo === '3_meses' ? 3 : 12;
+}
+function tipoLicenciaLegible(tipo){
+  return tipo === '1_mes' ? '1 mes' : tipo === '3_meses' ? '3 meses' : '1 año';
+}
+function avisoDiasPorTipoLicencia(tipo){
+  // Aviso de vencimiento próximo: 1 semana antes (1 mes), 15 días antes (3 meses), 1 mes antes (1 año)
+  return tipo === '1_mes' ? 7 : tipo === '3_meses' ? 15 : 30;
+}
+
+/* -- UI: pantalla de login -- */
+function mostrarPantallaLogin(){
+  mostrarPasoLogin('codigo');
+  mensajeLogin('');
+  document.getElementById('pantalla-login').style.display = 'flex';
+}
+function ocultarPantallaLogin(){
+  document.getElementById('pantalla-login').style.display = 'none';
+}
+function mostrarPasoLogin(paso){
+  ['codigo', 'otro-dispositivo', 'exito'].forEach(p=>{
+    const el = document.getElementById('login-paso-' + p);
+    if(el) el.style.display = (p === paso) ? 'block' : 'none';
+  });
+}
+function mensajeLogin(texto, tipo){
+  const el = document.getElementById('login-msg');
+  if(!el) return;
+  el.textContent = texto || '';
+  el.className = 'login-msg' + (tipo ? ' login-msg-' + tipo : '');
+}
+
+async function manejarEnvioLogin(forzar){
+  const codigoInput = document.getElementById('login-codigo');
+  const nombreInput = document.getElementById('login-nombre');
+  const telefonoInput = document.getElementById('login-telefono');
+
+  let codigo, nombre, telefono;
+  if(forzar && codigoEnCurso){
+    ({codigo, nombre, telefono} = codigoEnCurso);
+  } else {
+    codigo = (codigoInput.value || '').trim().toUpperCase();
+    nombre = (nombreInput.value || '').trim();
+    telefono = (telefonoInput.value || '').trim();
+    if(!codigo){ mensajeLogin('Ingresa tu código de acceso', 'error'); return; }
+    if(!nombre){ mensajeLogin('Ingresa tu nombre', 'error'); return; }
+  }
+
+  if(!sb){ mensajeLogin('No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.', 'error'); return; }
+
+  const fp = obtenerFingerprint();
+  const btn = document.getElementById('btn-login-validar');
+  const btnForzar = document.getElementById('btn-login-forzar');
+  mensajeLogin('Verificando código...', 'info');
+  if(btn) btn.disabled = true;
+  if(btnForzar) btnForzar.disabled = true;
+
+  let resp;
+  try{
+    const { data, error } = await sb.rpc('validar_codigo', {
+      p_codigo: codigo, p_fingerprint: fp,
+      p_nombre: nombre || null, p_telefono: telefono || null,
+      p_forzar: !!forzar
+    });
+    if(error) throw error;
+    resp = data;
+  }catch(e){
+    console.warn('Error validando código', e);
+    mensajeLogin('No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.', 'error');
+    if(btn) btn.disabled = false;
+    if(btnForzar) btnForzar.disabled = false;
+    return;
+  }
+  if(btn) btn.disabled = false;
+  if(btnForzar) btnForzar.disabled = false;
+
+  if(!resp || !resp.ok){
+    const motivo = resp && resp.motivo;
+    if(motivo === 'otro_dispositivo'){
+      codigoEnCurso = { codigo, nombre, telefono };
+      mostrarPasoLogin('otro-dispositivo');
+      return;
+    }
+    mostrarPasoLogin('codigo');
+    if(motivo === 'codigo_invalido') mensajeLogin('Ese código no existe. Revísalo e intenta de nuevo.', 'error');
+    else if(motivo === 'codigo_dado_de_baja') mensajeLogin('Este código fue dado de baja. Contacta a quien te lo vendió para obtener uno nuevo.', 'error');
+    else if(motivo === 'codigo_caducado') mensajeLogin('Este código ya venció. Ingresa un código nuevo para continuar.', 'error');
+    else mensajeLogin('No se pudo validar el código. Intenta de nuevo.', 'error');
+    return;
+  }
+
+  // Éxito: 'activado' | 'aceptado' | 'tomado_otro_dispositivo'
+  const vencISO = resp.fecha_vencimiento;
+  guardarLicenciaLocal({ codigo, fingerprint: fp, tipo: resp.tipo, fechaVencimiento: vencISO });
+  codigoEnCurso = null;
+
+  const meses = mesesDeTipoLicencia(resp.tipo);
+  document.getElementById('login-exito-msg').innerHTML =
+    `Gracias por comprar la aplicación. Usted tiene <b>${meses} mes${meses === 1 ? '' : 'es'}</b> para utilizarla.<br>` +
+    `La fecha de vencimiento es <b>${formatFechaCortaDDMMYY(vencISO)}</b>. Pasada esa fecha debe adquirir otra suscripción.`;
+  mostrarPasoLogin('exito');
+}
+
+async function continuarTrasLogin(){
+  ocultarPantallaLogin();
+  if(!appPrincipalIniciada) await iniciarAppPrincipal();
+  mostrarAvisoVencimientoSiAplica(leerLicenciaLocal());
+}
+
+/* -- Chequeo silencioso al iniciar: no bloquea la UI, solo sincroniza -- */
+async function chequearLicenciaEnSegundoPlano(lic){
+  if(!sb || !lic) return;
+  try{
+    const { data, error } = await sb.rpc('consultar_vencimiento', { p_codigo: lic.codigo, p_fingerprint: lic.fingerprint });
+    if(error || !data || !data.existe) return;
+    if(!data.fingerprint_coincide){
+      borrarLicenciaLocal();
+      toast('Este código se activó en otro dispositivo. Ingresa un código para continuar.');
+      mostrarPantallaLogin();
+      return;
+    }
+    if(data.fecha_vencimiento){
+      lic.fechaVencimiento = data.fecha_vencimiento; // el admin pudo haber cambiado la fecha manualmente
+      guardarLicenciaLocal(lic);
+    }
+    mostrarAvisoVencimientoSiAplica(lic);
+  }catch(e){ console.warn('Chequeo de licencia no disponible (¿sin conexión?)', e); }
+}
+
+function mostrarAvisoVencimientoSiAplica(lic){
+  const banner = document.getElementById('licencia-banner');
+  if(!banner || !lic || !lic.fechaVencimiento) { if(banner) banner.style.display = 'none'; return; }
+  const dias = diasRestantesLicencia(lic.fechaVencimiento);
+  const umbral = avisoDiasPorTipoLicencia(lic.tipo);
+  if(dias <= 0){
+    banner.className = 'licencia-banner licencia-banner-vencida';
+    banner.innerHTML = '<span>Tu suscripción venció. Ingresa un código nuevo para seguir usando la app.</span>' +
+      '<button class="btn-secondary" id="btn-ir-nuevo-codigo">Ingresar código</button>';
+    banner.style.display = 'flex';
+  } else if(dias <= umbral){
+    banner.className = 'licencia-banner licencia-banner-aviso';
+    banner.innerHTML = `<span>Tu suscripción vence en ${dias} día${dias === 1 ? '' : 's'} (${formatFechaCortaDDMMYY(lic.fechaVencimiento)}).</span>` +
+      '<button class="btn-secondary" id="btn-ir-nuevo-codigo">Ingresar código nuevo</button>';
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+    return;
+  }
+  const btn = document.getElementById('btn-ir-nuevo-codigo');
+  if(btn) btn.addEventListener('click', ()=>{ borrarLicenciaLocal(); mostrarPantallaLogin(); });
+}
+
+function abrirModalLicencia(){
+  const lic = leerLicenciaLocal();
+  const info = document.getElementById('licencia-info');
+  if(lic && lic.fechaVencimiento){
+    const dias = diasRestantesLicencia(lic.fechaVencimiento);
+    info.innerHTML = `<p style="margin-top:0;">Tipo de código: <b>${tipoLicenciaLegible(lic.tipo)}</b></p>` +
+      `<p>Vence el <b>${formatFechaCortaDDMMYY(lic.fechaVencimiento)}</b>` +
+      (dias > 0 ? ` (faltan ${dias} día${dias === 1 ? '' : 's'}).</p>` : ` (ya venció).</p>`);
+  } else {
+    info.innerHTML = '<p style="margin-top:0;">No se encontró información de licencia.</p>';
+  }
+  openModal('modal-licencia');
+}
+
 const LEGACY_STORAGE_KEY = 'gestor_sorteos_v1'; // clave usada en versiones previas (localStorage)
 const DB_NAME = 'gestor_sorteos_db';
 const DB_VERSION = 1;
@@ -1280,15 +1699,20 @@ let dashboardRecienAbierto = false; // true solo la vez que se acaba de entrar a
 let pendingConfirm = null; // {msg, onConfirm}
 let selectedNumbers = new Set(); // numeros seleccionados en el grid actual
 const GRID_SIZES = [
+  {cols:10, min:'0px', pad:'0px', font:'12px'}, // mínimo: filas de 10 (también en 320 px)
   {min:'46px', pad:'6px',  font:'11.5px'},
   {min:'56px', pad:'8px',  font:'13px'},
   {min:'64px', pad:'10px', font:'14px'},
   {min:'80px', pad:'12px', font:'16px'},
   {min:'100px',pad:'14px', font:'18px'}
 ];
+// Preferencia de vista (no es dato del sorteo ni va en el respaldo). Clave nueva porque se agregó
+// un nivel al inicio; si solo existe la clave anterior, se respeta el mismo tamaño (+1).
 let gridSizeLevel = (()=>{
+  const v2 = parseInt(localStorage.getItem('gestor_sorteos_gridsize_v2'), 10);
+  if(Number.isInteger(v2) && v2>=0 && v2<GRID_SIZES.length) return v2;
   const saved = parseInt(localStorage.getItem('gestor_sorteos_gridsize'), 10);
-  return (Number.isInteger(saved) && saved>=0 && saved<GRID_SIZES.length) ? saved : 2;
+  return (Number.isInteger(saved) && saved>=0 && saved<GRID_SIZES.length-1) ? saved+1 : 3;
 })();
 
 /* ---------- Persistencia: IndexedDB ---------- */
@@ -1697,8 +2121,8 @@ function cardArchivadoHTML(s){
         <span>${formatFechaLarga(s.fechaSorteo)}</span>
       </div>
       ${ganadorHtml}
-      <div class="progress-labels"><span>${stats.pagados} pagados</span><span>${formatColones(recaudado)} recaudado</span></div>
       ${stats.apartados ? `<div class="progress-labels por-cobrar"><span>${stats.apartados} apartados</span><span>${formatColones(totalPorCobrar(s, stats))} por cobrar</span></div>` : ''}
+      <div class="progress-labels"><span>${stats.pagados} pagados</span><span>${formatColones(recaudado)} recaudado</span></div>
     </div>
   </div>`;
 }
@@ -1845,13 +2269,22 @@ function renderDashboard(){
   const animarEntrada = dashboardRecienAbierto;
   dashboardRecienAbierto = false;
 
+  // Chip de cuenta regresiva (o «Archivado el…») debajo del título, dentro del banner
+  // En archivados, en pantallas angostas el chip y la fecha usan la forma corta (d/m/aaaa) para quedar en una línea
+  const fechaCorta = iso => { const p = String(iso || '').split('-'); return p.length === 3 ? `${+p[2]}/${+p[1]}/${p[0]}` : ''; };
+  const fechaDoble = iso => `<span class="f-larga">${formatFechaLarga(iso)}</span><span class="f-corta">${fechaCorta(iso)}</span>`;
+  const pillHtml = soloLectura
+    ? `<span class="countdown-pill countdown-archived">${icon('lock')}<span>${sorteo.fechaArchivado && fechaLocalISO(sorteo.fechaArchivado) ? 'Archivado el ' + fechaDoble(fechaLocalISO(sorteo.fechaArchivado)) : 'Archivado'}</span></span>`
+    : `<span class="countdown-pill ${cd.cls}">${cd.txt}</span>`;
+
   cont.innerHTML = `
     <div class="dash-banner${animarEntrada ? ' anim-up' : ''}">
       <div class="dash-banner-bg"${bannerBgStyle}>${!sorteo.imagen ? `<span class="dash-banner-icon">${icon('gift')}</span>` : ''}</div>
       <div class="dash-banner-scrim"></div>
+      <div class="dash-banner-sizer" aria-hidden="true"><div class="dbs-title">${escapeHtml(sorteo.titulo)}</div><div class="dbs-fecha">${formatFechaLarga(sorteo.fechaSorteo)}</div></div>
       <div class="dash-banner-info">
         <div class="dash-banner-title">${escapeHtml(sorteo.titulo)}</div>
-        <div class="dash-banner-fecha">${formatFechaLarga(sorteo.fechaSorteo)}</div>
+        <div class="dash-banner-meta">${pillHtml}<span class="dash-banner-fecha">${soloLectura ? fechaDoble(sorteo.fechaSorteo) : formatFechaLarga(sorteo.fechaSorteo)}</span></div>
       </div>
       ${!soloLectura ? `<button class="dash-banner-edit" id="dash-btn-cambiar-imagen" title="Cambiar imagen">${icon('pencil')}</button>
       <input type="file" id="f-cambiar-imagen" accept="image/*" style="display:none;">` : ''}
@@ -1867,13 +2300,7 @@ function renderDashboard(){
     ${mostrarStats ? `
     <div class="dash-header anim-up-d2">
       <div class="dash-info">
-        <div class="countdown-row">
-          ${soloLectura
-            ? `<span class="countdown-pill countdown-archived">${icon('lock')} ${sorteo.fechaArchivado && fechaLocalISO(sorteo.fechaArchivado) ? 'Archivado el ' + formatFechaLarga(fechaLocalISO(sorteo.fechaArchivado)) : 'Archivado'}</span>`
-            : `<span class="countdown-pill ${cd.cls}">${cd.txt}</span>
-          <button class="btn-ghost" id="dash-btn-fecha">Editar fecha</button>
-          <button class="btn-ghost" id="dash-btn-editar">Editar sorteo</button>`}
-        </div>
+        <div class="dash-header-row"><div class="dash-header-title">Resumen</div></div>
         <div class="dash-fecha-row">${formatFechaLarga(sorteo.fechaSorteo)}</div>
         ${ganadorHtml}
         <div class="dash-stats">
@@ -1881,17 +2308,23 @@ function renderDashboard(){
           <div class="stat-box disp"><div class="num">${stats.disponibles}</div><div class="lbl">Disponibles</div></div>
           <div class="stat-box apart"><div class="num">${stats.apartados}</div><div class="lbl">Apartados</div></div>
           <div class="stat-box pag"><div class="num">${stats.pagados}</div><div class="lbl">Pagados</div></div>
-          <div class="stat-box money"><div class="num">${formatColones(totalRecaudado(sorteo, stats))}</div><div class="lbl">Recaudado</div></div>
           <div class="stat-box cobrar"><div class="num">${formatColones(totalPorCobrar(sorteo, stats))}</div><div class="lbl">Por cobrar</div></div>
+          <div class="stat-box money"><div class="num">${formatColones(totalRecaudado(sorteo, stats))}</div><div class="lbl">Recaudado</div></div>
         </div>
       </div>
-      <div class="dash-actions">
-        <button class="btn-secondary" id="dash-btn-archivar">${soloLectura ? 'Restaurar sorteo' : 'Archivar sorteo'}</button>
-        <button class="btn-danger" id="dash-btn-eliminar">${icon('trash')}<span>Eliminar</span></button>
-      </div>
+      ${!soloLectura ? `<div class="dash-actions">
+        <button class="btn-secondary" id="dash-btn-fecha">Editar fecha</button>
+        <button class="btn-secondary" id="dash-btn-editar">Editar sorteo</button>
+      </div>` : ''}
     </div>` : ''}
 
     <div id="dash-tab-content" class="${animarEntrada ? 'anim-up-d3' : 'anim-up'}"></div>
+
+    ${mostrarStats ? `
+    <div class="dash-actions dash-actions-final ${animarEntrada ? 'anim-up-d3' : 'anim-up'}">
+      <button class="btn-secondary" id="dash-btn-archivar">${soloLectura ? 'Restaurar sorteo' : 'Archivar sorteo'}</button>
+      <button class="btn-danger" id="dash-btn-eliminar">${icon('trash')}<span>Eliminar sorteo</span></button>
+    </div>` : ''}
   `;
 
   document.getElementById('dash-back-btn').addEventListener('click', ()=>{
@@ -1938,12 +2371,7 @@ function renderDashboard(){
   const btnArchivar = document.getElementById('dash-btn-archivar');
   if(btnArchivar) btnArchivar.addEventListener('click', ()=>{
     if(sorteo.archivado){
-      sorteo.archivado = false;
-      sorteo.ganador = null;
-      sorteo.fechaArchivado = null;
-      saveState();
-      toast('Sorteo restaurado');
-      renderDashboard();
+      abrirModalRestaurar(sorteo);
       return;
     }
     abrirModalGanador(sorteo);
@@ -2007,20 +2435,34 @@ function renderDashTabContent(sorteo){
 
   if(currentDashTab === 'descargas'){
     const esSeries = sorteo.tipo === 'series';
+    let serieOpts = '';
+    if(esSeries){
+      for(let s=1; s<=sorteo.cantidadSeries; s++) serieOpts += `<option value="${s}"${s===currentSerie?' selected':''}>Serie ${s}</option>`;
+    }
     cont.innerHTML = `
       <div class="descargas-wrap">
         <p class="form-hint" style="margin-top:0;">Descarga la lista completa de números con el nombre y teléfono de cada comprador.</p>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <button class="btn-primary" id="btn-descargar-excel">${icon('download')} Descargar Excel (.xlsx)</button>
-          <button class="btn-secondary" id="btn-descargar-imagen" ${esSeries ? 'disabled' : ''} title="${esSeries ? 'No disponible para sorteos con series' : ''}">${icon('download')} Descargar imagen (.png)</button>
+          ${!esSeries ? `<button class="btn-secondary" id="btn-descargar-imagen">${icon('download')} Descargar lista (.png)</button>` : ''}
         </div>
-        ${esSeries ? '<div class="form-hint">La descarga de imagen solo está disponible para sorteos regulares (sin series).</div>' : ''}
       </div>
+      <section class="disp-wrap" aria-labelledby="disp-titulo">
+        <h3 class="disp-titulo" id="disp-titulo">Imagen de números disponibles</h3>
+        <p class="form-hint disp-hint">Para compartir: los números en filas de 10, con los que ya no están disponibles en gris. No incluye nombres ni teléfonos.</p>
+        <div class="disp-controls">
+          ${esSeries ? `<label class="disp-field"><span>Serie</span><select id="disp-serie">${serieOpts}</select></label>` : ''}
+          <label class="disp-field" id="disp-rango-wrap" hidden><span>Números</span><select id="disp-rango"></select></label>
+          <button class="btn-primary" id="btn-descargar-disponibles">${icon('download')} Descargar PNG</button>
+        </div>
+        <div class="disp-preview"><canvas id="disp-canvas" role="img"></canvas></div>
+      </section>
     `;
     document.getElementById('btn-descargar-excel').addEventListener('click', ()=> descargarExcelSorteo(sorteo));
     if(!esSeries){
       document.getElementById('btn-descargar-imagen').addEventListener('click', ()=> descargarImagenSorteo(sorteo));
     }
+    iniciarImagenDisponibles(sorteo);
     return;
   }
 
@@ -2039,9 +2481,8 @@ function renderDashTabContent(sorteo){
     <div class="toolbar">
       <input type="text" id="dash-buscar" placeholder="Buscar número o comprador...">
       <div class="size-control">
-        <button class="icon-btn" id="size-minus" title="Achicar números"><svg class="icon"><use href="#icon-minus"></use></svg></button>
-        <span class="size-label" id="size-label"></span>
-        <button class="icon-btn" id="size-plus" title="Agrandar números"><svg class="icon"><use href="#icon-plus"></use></svg></button>
+        <button class="icon-btn" id="size-minus" title="Achicar números" aria-label="Achicar números"><svg class="icon"><use href="#icon-minus"></use></svg></button>
+        <button class="icon-btn" id="size-plus" title="Agrandar números" aria-label="Agrandar números"><svg class="icon"><use href="#icon-plus"></use></svg></button>
       </div>
       <div class="legend">
         <span><span class="box" style="background:var(--disponible);border:1.5px solid var(--disponible-border);"></span>Disponible</span>
@@ -2140,6 +2581,59 @@ function abrirModalGanador(sorteo){
   };
 }
 
+/* ---------- Modal: restaurar sorteo archivado (nuevo vs. continuar) ---------- */
+function abrirModalRestaurar(sorteo){
+  const caducado = daysUntil(sorteo.fechaSorteo) < 0;
+  const grupoFecha = document.getElementById('restaurar-grupo-fecha');
+  const inputFecha = document.getElementById('f-restaurar-fecha');
+  grupoFecha.style.display = caducado ? 'block' : 'none';
+  inputFecha.value = '';
+  inputFecha.min = todayISO();
+  openModal('modal-restaurar');
+
+  const resolverFecha = ()=>{
+    if(!caducado) return sorteo.fechaSorteo;
+    const nueva = inputFecha.value;
+    if(!nueva){ errorCampo('f-restaurar-fecha', 'Este sorteo ya venció: indica una nueva fecha para restaurarlo'); return null; }
+    if(nueva < todayISO()){ errorCampo('f-restaurar-fecha', 'La fecha no puede ser anterior a hoy'); return null; }
+    return nueva;
+  };
+
+  document.getElementById('btn-restaurar-continuar').onclick = ()=>{
+    const fecha = resolverFecha();
+    if(fecha === null) return;
+    sorteo.fechaSorteo = fecha;
+    sorteo.archivado = false;
+    sorteo.ganador = null;
+    sorteo.fechaArchivado = null;
+    saveState();
+    closeModal('modal-restaurar');
+    toast('Sorteo restaurado: se mantuvieron los números apartados y pagados');
+    renderDashboard();
+  };
+
+  document.getElementById('btn-restaurar-nuevo').onclick = ()=>{
+    const fecha = resolverFecha();
+    if(fecha === null) return;
+    sorteo.numeros.forEach(n=>{
+      n.estado = 'disponible';
+      n.comprador = '';
+      n.telefono = '';
+      n.notas = '';
+      n.fechaApartado = null;
+      n.fechaPago = null;
+    });
+    sorteo.fechaSorteo = fecha;
+    sorteo.archivado = false;
+    sorteo.ganador = null;
+    sorteo.fechaArchivado = null;
+    saveState();
+    closeModal('modal-restaurar');
+    toast('Sorteo restaurado como nuevo: todos los números quedaron disponibles');
+    renderDashboard();
+  };
+}
+
 /* ---------- Modal: editar sorteo (título, valor y cantidad de números) ---------- */
 function numeroAsignadoMasAlto(sorteo){
   let alto = null;
@@ -2217,7 +2711,7 @@ function cambiarTamanoGrid(delta){
   const nuevo = gridSizeLevel + delta;
   if(nuevo < 0 || nuevo >= GRID_SIZES.length) return;
   gridSizeLevel = nuevo;
-  localStorage.setItem('gestor_sorteos_gridsize', String(gridSizeLevel));
+  localStorage.setItem('gestor_sorteos_gridsize_v2', String(gridSizeLevel));
   aplicarTamanoGrid();
 }
 function aplicarTamanoGrid(){
@@ -2228,6 +2722,7 @@ function aplicarTamanoGrid(){
     grid.style.setProperty('--num-min', cfg.min);
     grid.style.setProperty('--num-pad', cfg.pad);
     grid.style.setProperty('--num-font', cfg.font);
+    grid.classList.toggle('grid-diez', !!cfg.cols);
   }
   if(label) label.textContent = GRID_SIZES.map((_,i)=> i<=gridSizeLevel ? '●' : '○').join('');
 }
@@ -2591,65 +3086,72 @@ function pintarHistorialSorteo(sorteo){
   });
 }
 
+/* Historial: un solo patrón de lista plegable (escritorio y móvil).
+   histAbiertos solo recuerda qué filas están abiertas en pantalla (estado de vista, no de datos). */
+const histAbiertos = new Set();
+const HIST_CHEVRON = '<svg class="icon hist-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6"/></svg>';
+function histFecha(iso){ return iso ? new Date(iso).toLocaleDateString('es-CR') : '—'; }
+function histItemHTML(key, serie, numero, campos, accionesHtml){
+  const base = 'h-' + String(key).replace(/[^a-zA-Z0-9_-]/g, '-');
+  const abierto = histAbiertos.has(key);
+  return `<li class="hist-item${abierto ? ' open' : ''}" data-hist-key="${escapeAttr(key)}">
+    <button type="button" class="hist-toggle" id="${base}-t" aria-expanded="${abierto}" aria-controls="${base}-p">
+      <span class="hist-toggle-txt">${serie !== null ? `<span class="hist-serie">Serie ${serie}</span>` : ''}<span class="hist-lbl">Número</span> <b class="hist-num">${escapeHtml(numero)}</b></span>
+      ${HIST_CHEVRON}
+    </button>
+    <div class="hist-panel" id="${base}-p" role="region" aria-labelledby="${base}-t">
+      <div class="hist-panel-inner">
+        <dl class="hist-datos">${campos.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
+        ${accionesHtml ? `<div class="hist-acciones">${accionesHtml}</div>` : ''}
+      </div>
+    </div>
+  </li>`;
+}
+function histArchivado(){ return `<span class="hist-lock">${icon('lock')} Archivado · solo lectura</span>`; }
 function tablaPendientes(rows){
-  const conSerie = rows.some(r=>r.sorteo.tipo==='series');
-  return `<div class="table-wrap"><table>
-    <thead><tr>${conSerie?'<th>Serie</th>':''}<th>Número</th><th>Comprador</th><th>Teléfono</th><th>Apartado</th><th></th></tr></thead>
-    <tbody>
-      ${rows.map(r=>`
-        <tr>
-          ${conSerie?`<td>${r.item.serie}</td>`:''}
-          <td><b>${r.item.numero}</b></td>
-          <td>${escapeHtml(r.item.comprador)}</td>
-          <td>${escapeHtml(r.item.telefono||'—')}</td>
-          <td>${r.item.fechaApartado ? new Date(r.item.fechaApartado).toLocaleDateString('es-CR') : '—'}</td>
-          <td class="row-actions">
-            ${r.sorteo.archivado
-              ? `<span style="font-size:11.5px;color:var(--muted);">${icon('lock')} Archivado</span>`
-              : `<button class="btn-primary btn-sm" data-pagar="${r.sorteo.id}||${r.item.serie}||${r.item.numero}">Marcar pagado</button>
-                 <button class="btn-danger btn-sm" data-liberar="${r.sorteo.id}||${r.item.serie}||${r.item.numero}">Liberar</button>`}
-          </td>
-        </tr>`).join('')}
-    </tbody>
-  </table></div>`;
+  return `<ul class="hist-list hist-pendientes" role="list">
+    ${rows.map(r => histItemHTML(`${r.sorteo.id}|${r.item.serie}|${r.item.numero}`, r.sorteo.tipo === 'series' ? r.item.serie : null, r.item.numero, [
+      ['Comprador', escapeHtml(r.item.comprador || '—')],
+      ['Teléfono', escapeHtml(r.item.telefono || '—')],
+      ['Apartado', histFecha(r.item.fechaApartado)],
+      ['Notas', escapeHtml(r.item.notas || '—')]
+    ], r.sorteo.archivado ? histArchivado()
+      : `<button class="btn-primary btn-sm" data-pagar="${r.sorteo.id}||${r.item.serie}||${r.item.numero}">Marcar pagado</button>
+         <button class="btn-danger btn-sm" data-liberar="${r.sorteo.id}||${r.item.serie}||${r.item.numero}">Liberar</button>`)).join('')}
+  </ul>`;
 }
 function tablaPagados(rows){
-  const conSerie = rows.some(r=>r.sorteo.tipo==='series');
-  return `<div class="table-wrap"><table>
-    <thead><tr>${conSerie?'<th>Serie</th>':''}<th>Número</th><th>Comprador</th><th>Pagado</th><th></th></tr></thead>
-    <tbody>
-      ${rows.map(r=>`
-        <tr>
-          ${conSerie?`<td>${r.item.serie}</td>`:''}
-          <td><b>${r.item.numero}</b></td>
-          <td>${escapeHtml(r.item.comprador)}</td>
-          <td>${r.item.fechaPago ? new Date(r.item.fechaPago).toLocaleDateString('es-CR') : '—'}</td>
-          <td class="row-actions">
-            ${r.sorteo.archivado
-              ? `<span style="font-size:11.5px;color:var(--muted);">${icon('lock')} Archivado</span>`
-              : `<button class="btn-danger btn-sm" data-liberar="${r.sorteo.id}||${r.item.serie}||${r.item.numero}">Liberar</button>`}
-          </td>
-        </tr>`).join('')}
-    </tbody>
-  </table></div>`;
+  return `<ul class="hist-list hist-pagados" role="list">
+    ${rows.map(r => histItemHTML(`${r.sorteo.id}|${r.item.serie}|${r.item.numero}`, r.sorteo.tipo === 'series' ? r.item.serie : null, r.item.numero, [
+      ['Comprador', escapeHtml(r.item.comprador || '—')],
+      ['Teléfono', escapeHtml(r.item.telefono || '—')],
+      ['Apartado', histFecha(r.item.fechaApartado)],
+      ['Pagado', histFecha(r.item.fechaPago)],
+      ['Notas', escapeHtml(r.item.notas || '—')]
+    ], r.sorteo.archivado ? histArchivado()
+      : `<button class="btn-danger btn-sm" data-liberar="${r.sorteo.id}||${r.item.serie}||${r.item.numero}">Liberar</button>`)).join('')}
+  </ul>`;
 }
 
 function tablaLiberados(entradas, sorteo){
-  const conSerie = sorteo.tipo === 'series';
-  return `<div class="table-wrap hist-liberados"><table>
-    <thead><tr>${conSerie?'<th>Serie</th>':''}<th>Número</th><th>Comprador anterior</th><th>Liberado</th><th>Detalle</th></tr></thead>
-    <tbody>
-      ${entradas.map(h=>`
-        <tr>
-          ${conSerie?`<td>${h.serie}</td>`:''}
-          <td><b>${escapeHtml(h.numero)}</b></td>
-          <td>${escapeHtml(h.comprador || '—')}</td>
-          <td>${h.fecha ? new Date(h.fecha).toLocaleDateString('es-CR') : '—'}</td>
-          <td>${escapeHtml(h.nota || '—')}</td>
-        </tr>`).join('')}
-    </tbody>
-  </table></div>`;
+  return `<ul class="hist-list hist-liberados" role="list">
+    ${entradas.map(h => histItemHTML(`${sorteo.id}|lib|${h.id}`, sorteo.tipo === 'series' ? h.serie : null, h.numero, [
+      ['Comprador anterior', escapeHtml(h.comprador || '—')],
+      ['Liberado', histFecha(h.fecha)],
+      ['Detalle', escapeHtml(h.nota || '—')]
+    ], '')).join('')}
+  </ul>`;
 }
+// Abrir / cerrar: el botón de la fila; los botones de adentro no están dentro de él.
+document.addEventListener('click', (e)=>{
+  const t = e.target.closest && e.target.closest('.hist-toggle');
+  if(!t) return;
+  const item = t.closest('.hist-item');
+  const abrir = !item.classList.contains('open');
+  item.classList.toggle('open', abrir);
+  t.setAttribute('aria-expanded', String(abrir));
+  if(abrir) histAbiertos.add(item.dataset.histKey); else histAbiertos.delete(item.dataset.histKey);
+});
 
 /* ---------- Utilidades ---------- */
 function escapeHtml(str){
@@ -2797,13 +3299,29 @@ function hojaXmlDesdeFilas(filas){
   filas.forEach((fila, ri)=>{
     const r = ri + 1;
     let celdasXml = '';
-    fila.forEach((valor, ci)=>{
+    fila.forEach((celda, ci)=>{
       const ref = colLetra(ci + 1) + r;
-      celdasXml += `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xmlEscapeXlsx(valor)}</t></is></c>`;
+      // Cada celda puede ser un valor simple (estilo normal) o {v, s} para aplicarle un estilo
+      // (ver cellXfs en construirXLSX: 0=normal, 1=negrita/encabezado, 2=ganador en rojo).
+      const esObjeto = celda !== null && typeof celda === 'object';
+      const valor = esObjeto ? celda.v : celda;
+      const estilo = esObjeto && celda.s ? celda.s : 0;
+      const sAttr = estilo ? ` s="${estilo}"` : '';
+      celdasXml += `<c r="${ref}" t="inlineStr"${sAttr}><is><t xml:space="preserve">${xmlEscapeXlsx(valor)}</t></is></c>`;
     });
     filasXml += `<row r="${r}">${celdasXml}</row>`;
   });
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${filasXml}</sheetData></worksheet>`;
+}
+/* Estilos mínimos: 0=normal, 1=negrita (títulos/encabezados), 2=negrita blanca sobre fondo rojo (número ganador) */
+function stylesXmlXLSX(){
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`
+    + `<fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts>`
+    + `<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFC0392B"/><bgColor indexed="64"/></patternFill></fill></fills>`
+    + `<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>`
+    + `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>`
+    + `<cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="2" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs>`
+    + `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
 }
 function construirXLSX(hojas){ // hojas: [{nombre, filas: [[...]]}]
   const encoder = new TextEncoder();
@@ -2815,8 +3333,9 @@ function construirXLSX(hojas){ // hojas: [{nombre, filas: [[...]]}]
     sheetsXml += `<sheet name="${xmlEscapeXlsx(h.nombre.slice(0,31))}" sheetId="${i+1}" r:id="rId${i+1}"/>`;
     relsHojas += `<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`;
   });
+  relsHojas += `<Relationship Id="rId${hojas.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`;
 
-  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${overrides}</Types>`;
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${overrides}</Types>`;
   const rootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
   const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheetsXml}</sheets></workbook>`;
   const workbookRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${relsHojas}</Relationships>`;
@@ -2826,6 +3345,7 @@ function construirXLSX(hojas){ // hojas: [{nombre, filas: [[...]]}]
     {nombre:'_rels/.rels', datos: encoder.encode(rootRels)},
     {nombre:'xl/workbook.xml', datos: encoder.encode(workbook)},
     {nombre:'xl/_rels/workbook.xml.rels', datos: encoder.encode(workbookRels)},
+    {nombre:'xl/styles.xml', datos: encoder.encode(stylesXmlXLSX())},
   ];
   hojas.forEach((h, i)=>{
     archivos.push({nombre:`xl/worksheets/sheet${i+1}.xml`, datos: encoder.encode(hojaXmlDesdeFilas(h.filas))});
@@ -2836,20 +3356,35 @@ function construirXLSX(hojas){ // hojas: [{nombre, filas: [[...]]}]
 }
 
 function descargarExcelSorteo(sorteo){
-  const encabezado = ['Número','Estado','Comprador','Teléfono'];
+  const encabezado = ['Número','Estado','Comprador','Teléfono'].map(v=>({v, s:1}));
+  const esNumeroGanador = (n) => !!sorteo.ganador && n.numero === sorteo.ganador.numero &&
+    (sorteo.tipo !== 'series' || n.serie === sorteo.ganador.serie);
   const filasDe = (numsSerie) => numsSerie
     .slice()
     .sort((a,b)=> a.numero.localeCompare(b.numero))
-    .map(n=>[n.numero, estadoTexto(n.estado), n.comprador||'', n.telefono||'']);
+    .map(n=>{
+      const fila = [n.numero, estadoTexto(n.estado), n.comprador||'', n.telefono||''];
+      return esNumeroGanador(n) ? fila.map(v=>({v, s:2})) : fila;
+    });
+
+  let lineaFecha = 'Lista de números · ' + formatFechaLarga(sorteo.fechaSorteo);
+  if(sorteo.ganador){
+    lineaFecha += ` · Ganador: N° ${sorteo.ganador.numero}${sorteo.tipo==='series' ? ' (Serie '+sorteo.ganador.serie+')' : ''}`;
+  }
+  const filasHeader = [
+    [{v: sorteo.titulo, s:1}],
+    sorteo.ganador ? [{v: lineaFecha, s:2}] : [lineaFecha],
+    [''],
+  ];
 
   let hojas = [];
   if(sorteo.tipo === 'series'){
     for(let s=1; s<=sorteo.cantidadSeries; s++){
       const nums = sorteo.numeros.filter(n=>n.serie===s);
-      hojas.push({nombre: 'Serie ' + s, filas: [encabezado, ...filasDe(nums)]});
+      hojas.push({nombre: 'Serie ' + s, filas: [...filasHeader, encabezado, ...filasDe(nums)]});
     }
   } else {
-    hojas.push({nombre: 'Números', filas: [encabezado, ...filasDe(sorteo.numeros)]});
+    hojas.push({nombre: 'Números', filas: [...filasHeader, encabezado, ...filasDe(sorteo.numeros)]});
   }
 
   const blob = construirXLSX(hojas);
@@ -2886,23 +3421,28 @@ function descargarImagenSorteo(sorteo){
   ctx.fillStyle = '#1f2430';
   ctx.font = 'bold 20px Arial, sans-serif';
   ctx.fillText(sorteo.titulo, padding, 32);
-  ctx.fillStyle = '#6b7280';
-  ctx.font = '13px Arial, sans-serif';
-  ctx.fillText('Lista de números · ' + formatFechaLarga(sorteo.fechaSorteo), padding, 52);
+  let lineaFecha = 'Lista de números · ' + formatFechaLarga(sorteo.fechaSorteo);
+  if(sorteo.ganador){
+    lineaFecha += ` · Ganador: N° ${sorteo.ganador.numero}`;
+  }
+  ctx.fillStyle = sorteo.ganador ? '#c0392b' : '#6b7280';
+  ctx.font = sorteo.ganador ? 'bold 13px Arial, sans-serif' : '13px Arial, sans-serif';
+  ctx.fillText(lineaFecha, padding, 52);
 
   filas.forEach((n, i)=>{
     const col = Math.floor(i / filasPorColumna);
     const fila = i % filasPorColumna;
     const x = padding + col * anchoColumna;
     const y = altoHeader + fila * altoFila;
-    const colorEstado = n.estado === 'pagado' ? '#1f6b45' : n.estado === 'apartado' ? '#8a5d1f' : '#9aa0ab';
+    const esGanador = !!sorteo.ganador && n.numero === sorteo.ganador.numero;
+    const colorEstado = esGanador ? '#c0392b' : (n.estado === 'pagado' ? '#1f6b45' : n.estado === 'apartado' ? '#8a5d1f' : '#9aa0ab');
 
     ctx.fillStyle = colorEstado;
     ctx.font = 'bold 13px Arial, sans-serif';
     ctx.fillText(n.numero, x, y + 16);
 
     const detalle = n.comprador ? `${n.comprador}${n.telefono ? ' · ' + n.telefono : ''}` : estadoTexto(n.estado);
-    ctx.fillStyle = n.comprador ? '#1f2430' : '#9aa0ab';
+    ctx.fillStyle = esGanador ? '#c0392b' : (n.comprador ? '#1f2430' : '#9aa0ab');
     ctx.font = '12.5px Arial, sans-serif';
     ctx.fillText(truncarTexto(ctx, detalle, anchoColumna - 52), x + 44, y + 16);
   });
@@ -2914,11 +3454,179 @@ function descargarImagenSorteo(sorteo){
   toast('Descargando imagen...');
 }
 
+/* ---------- Imagen de números disponibles (solo lee el estado) ----------
+   Versión clara fija para compartir. 1080 px de ancho; hasta 1000 números por imagen
+   (100 filas de 10 ≈ 1080×7300 px, dentro de los límites de canvas de Chrome/Safari/iOS).
+   Si una serie tiene más de 1000 números, se elige el tramo. */
+const DISP_POR_IMAGEN = 1000;
+const DISP_FUENTE = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+function dispPartirTexto(ctx, texto, ancho, maxLineas){
+  const palabras = String(texto).split(/\s+/).filter(Boolean);
+  const lineas = []; let actual = '';
+  palabras.forEach(p=>{
+    const prueba = actual ? actual + ' ' + p : p;
+    if(ctx.measureText(prueba).width <= ancho || !actual) actual = prueba;
+    else { lineas.push(actual); actual = p; }
+  });
+  if(actual) lineas.push(actual);
+  if(lineas.length > maxLineas){
+    const resto = lineas.slice(maxLineas - 1).join(' ');
+    lineas.length = maxLineas - 1;
+    lineas.push(truncarTexto(ctx, resto, ancho));
+  }
+  return lineas.map(l => ctx.measureText(l).width > ancho ? truncarTexto(ctx, l, ancho) : l);
+}
+function dispRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function dibujarImagenDisponibles(canvas, sorteo, serie, tramo, todos, rotuloTramo){
+  const W = 1080, PAD = 56, COLS = 10, GAP = 10, CELL_H = 64, R = 12;
+  const CELL_W = (W - PAD * 2 - GAP * (COLS - 1)) / COLS;
+  const C = {bg:'#faf8ff', acento1:'#5b3df0', acento2:'#8b70ff', texto:'#1f1a33', texto2:'#4a4560',
+             marca:'#4a2fd6', libreBorde:'#5b3df0', libreFondo:'#ffffff', ocupadoFondo:'#e6e3ee', ocupadoTexto:'#5f5a72', pie:'#5f5a72'};
+  const ctx = canvas.getContext('2d');
+  ctx.font = `700 46px ${DISP_FUENTE}`;
+  const lineasTitulo = dispPartirTexto(ctx, sorteo.titulo, W - PAD * 2, 2);
+  const disponibles = todos.filter(n => n.estado === 'disponible').length;
+  const filas = Math.max(1, Math.ceil(tramo.length / COLS));
+  const yTitulo = PAD + 14 + 34;
+  const altoSerie = serie !== null ? 58 : 0;
+  const yGrid = yTitulo + lineasTitulo.length * 56 + 14 + altoSerie + 34 + 30 + 34 + 34;
+  const H = Math.ceil(yGrid + filas * CELL_H + (filas - 1) * GAP + 40 + 26 + PAD - 12);
+  canvas.width = W; canvas.height = H;
+
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  const g = ctx.createLinearGradient(0, 0, W, 0); g.addColorStop(0, C.acento1); g.addColorStop(1, C.acento2);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, 12);
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+
+  ctx.fillStyle = C.marca; ctx.font = `700 22px ${DISP_FUENTE}`;
+  if('letterSpacing' in ctx) ctx.letterSpacing = '2px';
+  ctx.fillText('NÚMEROS DISPONIBLES', PAD, PAD + 14);
+  if('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+
+  ctx.fillStyle = C.texto; ctx.font = `700 46px ${DISP_FUENTE}`;
+  lineasTitulo.forEach((l, i) => ctx.fillText(l, PAD, yTitulo + 14 + i * 56));
+  let y = yTitulo + lineasTitulo.length * 56 + 14;
+
+  // Nombre de la serie, destacado
+  if(serie !== null){
+    ctx.font = `700 28px ${DISP_FUENTE}`;
+    const txt = `Serie ${serie}`; const wS = ctx.measureText(txt).width + 36;
+    dispRect(ctx, PAD, y + 4, wS, 44, 12); ctx.fillStyle = C.acento1; ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.textBaseline = 'middle'; ctx.fillText(txt, PAD + 18, y + 27); ctx.textBaseline = 'alphabetic';
+    y += altoSerie;
+  }
+
+  ctx.fillStyle = C.texto2; ctx.font = `600 26px ${DISP_FUENTE}`;
+  const linea1 = `${disponibles} de ${todos.length} disponibles` + (rotuloTramo ? ` · Números ${rotuloTramo}` : '');
+  ctx.fillText(truncarTexto(ctx, linea1, W - PAD * 2), PAD, y + 20);
+  ctx.font = `500 24px ${DISP_FUENTE}`;
+  ctx.fillText(truncarTexto(ctx, 'Sorteo: ' + formatFechaLarga(sorteo.fechaSorteo), W - PAD * 2), PAD, y + 54);
+
+  // Leyenda mínima
+  const yLey = y + 84;
+  ctx.font = `600 22px ${DISP_FUENTE}`;
+  let x = PAD;
+  dispRect(ctx, x, yLey, 28, 28, 7); ctx.fillStyle = C.libreFondo; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.libreBorde; ctx.stroke();
+  ctx.fillStyle = C.texto; ctx.fillText('Disponible', x + 40, yLey + 22);
+  x += 40 + ctx.measureText('Disponible').width + 36;
+  dispRect(ctx, x, yLey, 28, 28, 7); ctx.fillStyle = C.ocupadoFondo; ctx.fill();
+  ctx.fillStyle = C.texto; ctx.fillText('No disponible', x + 40, yLey + 22);
+
+  // Grilla de 10 por fila
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  tramo.forEach((n, i) => {
+    const cx = PAD + (i % COLS) * (CELL_W + GAP);
+    const cy = yGrid + Math.floor(i / COLS) * (CELL_H + GAP);
+    dispRect(ctx, cx + 1.5, cy + 1.5, CELL_W - 3, CELL_H - 3, R);
+    if(n.estado === 'disponible'){
+      ctx.fillStyle = C.libreFondo; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.libreBorde; ctx.stroke();
+      ctx.fillStyle = C.texto; ctx.font = `700 28px ${DISP_FUENTE}`;
+    } else {
+      ctx.fillStyle = C.ocupadoFondo; ctx.fill();
+      ctx.fillStyle = C.ocupadoTexto; ctx.font = `500 26px ${DISP_FUENTE}`;
+    }
+    ctx.fillText(n.numero, cx + CELL_W / 2, cy + CELL_H / 2 + 1);
+  });
+
+  // Pie
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = C.pie; ctx.font = `500 20px ${DISP_FUENTE}`;
+  ctx.fillText('Gestor de Sorteos · actualizado el ' + formatFechaLarga(todayISO()), PAD, H - PAD + 12);
+
+  canvas.setAttribute('aria-label', `Imagen de números disponibles${serie !== null ? ', serie ' + serie : ''}: ${disponibles} de ${todos.length} disponibles` + (rotuloTramo ? `, números ${rotuloTramo}` : ''));
+}
+function iniciarImagenDisponibles(sorteo){
+  const canvas = document.getElementById('disp-canvas');
+  if(!canvas) return;
+  const selSerie = document.getElementById('disp-serie');
+  const selRango = document.getElementById('disp-rango');
+  const rangoWrap = document.getElementById('disp-rango-wrap');
+  const serieSel = () => selSerie ? parseInt(selSerie.value, 10) : 1;
+  const numsSerie = () => sorteo.numeros.filter(n => n.serie === serieSel()).slice().sort((a, b) => a.numero.localeCompare(b.numero));
+  let estado = {nums: [], parte: 0, partes: 1};
+  function tramos(){
+    estado.nums = numsSerie();
+    estado.partes = Math.max(1, Math.ceil(estado.nums.length / DISP_POR_IMAGEN));
+    let html = '';
+    for(let i = 0; i < estado.partes; i++){
+      const a = estado.nums[i * DISP_POR_IMAGEN].numero, b = estado.nums[Math.min(estado.nums.length, (i + 1) * DISP_POR_IMAGEN) - 1].numero;
+      html += `<option value="${i}">${a} – ${b}</option>`;
+    }
+    selRango.innerHTML = html;
+    rangoWrap.hidden = estado.partes <= 1;
+  }
+  function dibujar(){
+    estado.parte = parseInt(selRango.value || '0', 10) || 0;
+    const tramo = estado.nums.slice(estado.parte * DISP_POR_IMAGEN, (estado.parte + 1) * DISP_POR_IMAGEN);
+    const rotulo = estado.partes > 1 ? `${tramo[0].numero}–${tramo[tramo.length - 1].numero}` : '';
+    dibujarImagenDisponibles(canvas, sorteo, selSerie ? serieSel() : null, tramo, estado.nums, rotulo);
+    canvas.dataset.archivo = `${slugify(sorteo.titulo)}-disponibles${selSerie ? '-serie-' + serieSel() : ''}${rotulo ? '-' + rotulo.replace('–', '-') : ''}.png`;
+  }
+  tramos(); dibujar();
+  if(selSerie) selSerie.addEventListener('change', () => { tramos(); dibujar(); });
+  selRango.addEventListener('change', dibujar);
+  document.getElementById('btn-descargar-disponibles').addEventListener('click', () => {
+    canvas.toBlob(blob => {
+      if(!blob){ toast('No se pudo generar la imagen'); return; }
+      descargarBlob(blob, canvas.dataset.archivo);
+    }, 'image/png');
+    toast('Descargando imagen...');
+  });
+}
+
 /* ---------- Inicio ---------- */
-(async function initApp(){
+async function iniciarAppPrincipal(){
+  appPrincipalIniciada = true;
   document.getElementById('home-content').innerHTML = `<div class="empty-state"><div class="big">${icon('loader', 'icon-spin')}</div><div>Cargando datos...</div></div>`;
   await cargarEstadoInicial();
   renderHome();
+}
+
+/* -- Eventos de la pantalla de login / licencia -- */
+document.getElementById('btn-login-validar').addEventListener('click', ()=> manejarEnvioLogin(false));
+document.getElementById('login-codigo').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') manejarEnvioLogin(false); });
+document.getElementById('login-nombre').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') manejarEnvioLogin(false); });
+document.getElementById('login-telefono').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') manejarEnvioLogin(false); });
+document.getElementById('btn-login-forzar').addEventListener('click', ()=> manejarEnvioLogin(true));
+document.getElementById('btn-login-cancelar-otro').addEventListener('click', ()=>{ codigoEnCurso = null; mostrarPasoLogin('codigo'); mensajeLogin(''); });
+document.getElementById('btn-login-continuar').addEventListener('click', continuarTrasLogin);
+document.getElementById('btn-mi-licencia').addEventListener('click', abrirModalLicencia);
+document.getElementById('btn-licencia-nuevo-codigo').addEventListener('click', ()=>{ closeModal('modal-licencia'); borrarLicenciaLocal(); mostrarPantallaLogin(); });
+
+(async function initApp(){
+  const lic = leerLicenciaLocal();
+  if(licenciaVigente(lic)){
+    ocultarPantallaLogin();
+    await iniciarAppPrincipal();
+    mostrarAvisoVencimientoSiAplica(lic);
+    chequearLicenciaEnSegundoPlano(lic); // no bloquea: corre despues de pintar la app
+  } else {
+    mostrarPantallaLogin();
+  }
 })();
 </script>
 <script>
