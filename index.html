@@ -2171,10 +2171,13 @@ async function validarCodigoIngresado(){
 
 async function continuarTrasLogin(){
   modoPrueba = false; // un código real siempre reemplaza al modo de prueba, aunque haya estado activo
+  marcarSesionCerrada(false);
   ocultarPantallaLogin();
   if(!appPrincipalIniciada) await iniciarAppPrincipal();
   else actualizarEstadoBotonNuevoSorteo();
-  mostrarAvisoVencimientoSiAplica(leerLicenciaLocal());
+  const licNueva = leerLicenciaLocal();
+  if(await restaurarSorteosEstacionados(licNueva && licNueva.codigo)){ showView('home'); actualizarEstadoBotonNuevoSorteo(); toast('Tus sorteos fueron restaurados'); }
+  mostrarAvisoVencimientoSiAplica(licNueva);
 }
 
 /* -- Chequeo silencioso al iniciar: no bloquea la UI, solo sincroniza -- */
@@ -2245,7 +2248,45 @@ function actualizarBotonCerrarSesion(){
   const sec = document.getElementById('menu-sesion-seccion');
   if(sec) sec.style.display = leerLicenciaLocal() ? '' : 'none';
 }
-function cerrarSesion(){
+/* Al cerrar sesión, los sorteos de esa cuenta se "estacionan" bajo su código y la app queda vacía:
+   así ni el modo de prueba ni otro código ven esos datos. Al volver a entrar con el MISMO código se restauran. */
+const SESION_CERRADA_KEY = 'sorteos_sesion_cerrada_v1';
+const estacionadosMemoria = new Map(); // respaldo en memoria por si IndexedDB no está disponible
+function marcarSesionCerrada(v){
+  try{ if(v) localStorage.setItem(SESION_CERRADA_KEY, '1'); else localStorage.removeItem(SESION_CERRADA_KEY); }catch(e){}
+}
+function sesionCerradaMarcada(){
+  try{ return localStorage.getItem(SESION_CERRADA_KEY) === '1'; }catch(e){ return false; }
+}
+function claveEstacionado(codigo){ return 'estacionado:' + String(codigo || '').trim().toUpperCase(); }
+async function estacionarSorteosDeSesion(codigo){
+  if(!codigo || !state || !Array.isArray(state.sorteos) || !state.sorteos.length) return;
+  const clave = claveEstacionado(codigo);
+  const copia = JSON.parse(JSON.stringify(state));
+  estacionadosMemoria.set(clave, copia);
+  try{ await dbSetKey(clave, copia); }catch(e){ console.warn('No se pudieron guardar los sorteos de la sesión cerrada', e); }
+}
+async function restaurarSorteosEstacionados(codigo){
+  if(!codigo) return false;
+  if(state && Array.isArray(state.sorteos) && state.sorteos.length) return false; // ya hay datos en esta sesión: no se pisan
+  const clave = claveEstacionado(codigo);
+  let data = estacionadosMemoria.get(clave) || null;
+  if(!data){ try{ data = await dbGetKey(clave); }catch(e){} }
+  if(!data || !Array.isArray(data.sorteos) || !data.sorteos.length) return false;
+  state = data;
+  try{ await dbSetState(state); }catch(e){ console.warn('No se pudo guardar los sorteos restaurados', e); }
+  estacionadosMemoria.delete(clave);
+  try{ await dbDeleteKey(clave); }catch(e){}
+  return true;
+}
+async function cerrarSesion(){
+  const lic = leerLicenciaLocal();
+  await estacionarSorteosDeSesion(lic && lic.codigo);
+  state = { sorteos: [] };
+  currentSorteoId = null;
+  selectedNumbers = new Set();
+  try{ await dbSetState(state); }catch(e){ console.warn('No se pudo vaciar IndexedDB al cerrar sesión', e); }
+  marcarSesionCerrada(true);
   borrarLicenciaLocal();
   modoPrueba = false;
   const banner = document.getElementById('licencia-banner');
@@ -2253,7 +2294,7 @@ function cerrarSesion(){
   actualizarBotonCerrarSesion();
   ponerCodigoEnCajas('');
   mostrarPantallaLogin();
-  if(appPrincipalIniciada) actualizarEstadoBotonNuevoSorteo();
+  if(appPrincipalIniciada){ actualizarBarraSeleccion(); showView('home'); actualizarEstadoBotonNuevoSorteo(); }
 }
 
 function abrirModalLicencia(){
@@ -2334,6 +2375,45 @@ function dbGetState(){
     const req = tx.objectStore(DB_STORE).get(DB_STATE_KEY);
     req.onsuccess = ()=> resolve(req.result || null);
     req.onerror = ()=> reject(req.error);
+  }));
+}
+/* Claves extra en la misma tienda: sorteos "estacionados" al cerrar sesión (clave 'estacionado:CODIGO') */
+function dbGetKey(key){
+  return getDb().then(db => new Promise((resolve, reject)=>{
+    const req = db.transaction(DB_STORE, 'readonly').objectStore(DB_STORE).get(key);
+    req.onsuccess = ()=> resolve(req.result || null);
+    req.onerror = ()=> reject(req.error);
+  }));
+}
+function dbSetKey(key, data){
+  return getDb().then(db => new Promise((resolve, reject)=>{
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).put(data, key);
+    tx.oncomplete = ()=> resolve();
+    tx.onerror = ()=> reject(tx.error);
+  }));
+}
+function dbDeleteKey(key){
+  return getDb().then(db => new Promise((resolve, reject)=>{
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).delete(key);
+    tx.oncomplete = ()=> resolve();
+    tx.onerror = ()=> reject(tx.error);
+  }));
+}
+function dbDeleteKeysPrefix(prefix){
+  return getDb().then(db => new Promise((resolve, reject)=>{
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    const store = tx.objectStore(DB_STORE);
+    const req = store.openKeyCursor();
+    req.onsuccess = ()=>{
+      const cur = req.result;
+      if(!cur) return;
+      if(typeof cur.key === 'string' && cur.key.startsWith(prefix)) store.delete(cur.key);
+      cur.continue();
+    };
+    tx.oncomplete = ()=> resolve();
+    tx.onerror = ()=> reject(tx.error);
   }));
 }
 function dbSetState(data){
@@ -2685,6 +2765,8 @@ async function eliminarTodosLosRegistros(){
   selectedNumbers = new Set();
   actualizarBarraSeleccion();
   try{ localStorage.removeItem(LEGACY_STORAGE_KEY); }catch(e){}
+  estacionadosMemoria.clear();
+  try{ await dbDeleteKeysPrefix('estacionado:'); }catch(e){ console.warn('No se pudieron vaciar los sorteos estacionados', e); }
   try{ await dbSetState(state); }
   catch(e){ console.warn('No se pudo vaciar IndexedDB', e); toast('No se pudo vaciar la base de datos'); return; }
   toast('Se eliminaron todos los registros');
@@ -4535,7 +4617,7 @@ document.getElementById('btn-login-continuar').addEventListener('click', continu
 document.getElementById('btn-mi-licencia').addEventListener('click', abrirModalLicencia);
 document.getElementById('btn-cerrar-sesion').addEventListener('click', ()=>{
   confirmar('Cerrar sesión',
-    '<p>Se quitará el código de este dispositivo y volverás a la pantalla de ingreso. Tus sorteos guardados aquí no se borran.</p><p>Para volver a entrar necesitarás ingresar tu código.</p>',
+    '<p>Se quitará el código de este dispositivo y volverás a la pantalla de ingreso. Los sorteos guardados aquí se ocultan y no los verá nadie más (ni en el modo de prueba).</p><p>Se recuperan al volver a entrar con este mismo código.</p>',
     cerrarSesion, 'Cerrar sesión');
 });
 // "Ingresar otro código" ya NO borra la licencia vigente: solo se reemplaza si el código nuevo se valida con éxito
@@ -4555,6 +4637,7 @@ document.getElementById('btn-login-prueba').addEventListener('click', async ()=>
     btnPrueba.disabled = false;
   }
   modoPrueba = true;
+  marcarSesionCerrada(false);
   ocultarPantallaLogin();
   if(!appPrincipalIniciada) await iniciarAppPrincipal();
   mostrarAvisoPruebaSiAplica(prueba);
@@ -4590,7 +4673,7 @@ configurarBotonContacto('btn-licencia-contacto', 'licencia-contacto-opciones', '
     return;
   }
   const prueba = leerPruebaLocal();
-  if(pruebaVigente(prueba)){
+  if(!sesionCerradaMarcada() && pruebaVigente(prueba)){ // tras cerrar sesión se pide ingresar de nuevo (no se entra solo al modo de prueba)
     modoPrueba = true;
     ocultarPantallaLogin();
     await iniciarAppPrincipal();
