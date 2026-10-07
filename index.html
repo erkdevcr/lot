@@ -1161,6 +1161,7 @@ d.setAttribute('data-theme',t);})();
   .numbers-grid.grid-diez .num-btn.selected::after{top:-6px;right:-6px;width:14px;height:14px;font-size:9px;line-height:14px;}
 
   /* 4) Imagen de números disponibles */
+  body.modo-vencido #btn-eliminar-todo, body.modo-vencido #btn-importar-json{display:none;}
   .numbers-descarga{grid-column:1 / -1;display:flex;justify-content:center;margin-top:var(--space-3);}
   .numbers-descarga .btn-secondary{min-height:var(--control-h);}
   @media (max-width:520px){ .numbers-descarga .btn-secondary{width:100%;justify-content:center;} }
@@ -1771,7 +1772,7 @@ d.setAttribute('data-theme',t);})();
       <button type="button" class="menu-ajustes-item menu-ajustes-item-peligro" id="btn-cerrar-sesion" title="Cerrar sesión en este dispositivo"><svg class="icon"><use href="#icon-logout"></use></svg><span>Cerrar sesión</span></button>
     </div>
   </div>
-  <div class="menu-ajustes-pie" id="menu-ajustes-pie">V <span id="menu-ajustes-version">1.0.8</span> · Copyright © ErkDevCr <span id="menu-ajustes-anio">2026</span></div>
+  <div class="menu-ajustes-pie" id="menu-ajustes-pie">V <span id="menu-ajustes-version">1.0.9</span> · Copyright © ErkDevCr <span id="menu-ajustes-anio">2026</span></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1808,7 +1809,7 @@ catch(e){ console.warn('No se pudo inicializar el cliente de Supabase', e); }
    APP_VERSION del nuevo index.html. Cada dispositivo lo consulta (sin usar la copia guardada) y, si hay una
    versión más nueva, recarga la app sola. No toca sorteos ni licencia (viven en este dispositivo).
    ========================================================= */
-const APP_VERSION = '1.0.8';
+const APP_VERSION = '1.0.9';
 const VERSION_URL = 'version.json';
 const VERSION_REVISAR_CADA_MS = 5 * 60 * 1000;
 let actualizandoApp = false;
@@ -1847,6 +1848,26 @@ function forzarActualizacion(remota){
     location.replace(u.toString());
   }, 1200);
 }
+/* La actualización espera a que no haya un formulario a medias (modal abierto, código a medio escribir, campo con texto) */
+let actualizacionPendiente = null;
+function hayFormularioAbierto(){
+  if(document.querySelector('.modal-overlay.active')) return true;
+  const login = document.getElementById('pantalla-login');
+  if(login && login.style.display === 'flex'){
+    const enPaso = ['datos', 'otro-dispositivo', 'exito'].some(p => { const el = document.getElementById('login-paso-' + p); return el && el.style.display === 'block'; });
+    if(enPaso) return true;
+    const cod = document.getElementById('login-codigo');
+    if(cod && cod.value) return true;
+  }
+  const a = document.activeElement;
+  if(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.type !== 'file' && !a.readOnly && a.value) return true;
+  return false;
+}
+function aplicarActualizacionPendiente(){
+  if(actualizandoApp || !actualizacionPendiente || hayFormularioAbierto()) return;
+  const v = actualizacionPendiente; actualizacionPendiente = null;
+  forzarActualizacion(v);
+}
 async function chequearVersionApp(){
   if(actualizandoApp) return;
   if(!/^https?:$/.test(location.protocol)) return; // abierto como archivo local: no aplica
@@ -1855,7 +1876,10 @@ async function chequearVersionApp(){
     if(!r.ok) return;
     const d = await r.json();
     const remota = d && d.v ? String(d.v) : '';
-    if(remota && versionEsMayor(remota, APP_VERSION)) forzarActualizacion(remota);
+    if(remota && versionEsMayor(remota, APP_VERSION)){
+      actualizacionPendiente = remota;
+      aplicarActualizacionPendiente(); // si hay un formulario abierto, espera a que se cierre
+    }
   }catch(e){ /* sin conexión o sin version.json: la app sigue normal */ }
 }
 (function limpiarUrlTrasActualizar(){
@@ -2034,6 +2058,7 @@ function pruebaVigente(prueba){
    código vigente (o con una prueba vigente): así "Ingresar otro código" no deja a la persona atrapada. */
 function loginSePuedeCerrar(){
   if(!appPrincipalIniciada) return false;
+  if(modoVencido) return true;
   if(licenciaVigente(leerLicenciaLocal())) return true;
   return !!(modoPrueba && pruebaVigente(leerPruebaLocal()));
 }
@@ -2149,6 +2174,9 @@ async function manejarEnvioLogin(forzar, opciones){
     if(motivo === 'codigo_invalido') mensajeLogin('Ese código no existe. Revísalo e intenta de nuevo.', 'error');
     else if(motivo === 'codigo_dado_de_baja') mensajeLogin('Este código fue dado de baja. Contacta a quien te lo vendió para obtener uno nuevo.', 'error');
     else if(motivo === 'codigo_caducado') mensajeLogin('Este código ya venció. Ingresa un código nuevo para continuar.', 'error');
+    else if(motivo === 'demasiados_intentos') mensajeLogin(MSG_DEMASIADOS_INTENTOS, 'error');
+    else if(motivo === 'limite_cambios') mensajeLogin('Este código ya se cambió de dispositivo varias veces este mes. Contacta a quien te lo vendió para que te ayude.', 'error');
+    else if(motivo === 'espera_cambio') mensajeLogin(mensajeEsperaCambio(resp && resp.espera_hasta), 'error');
     else mensajeLogin('No se pudo validar el código. Intenta de nuevo.', 'error');
     return;
   }
@@ -2228,6 +2256,12 @@ function codigoIncompletoEnCajas(){
   });
 })();
 
+const MSG_DEMASIADOS_INTENTOS = 'Demasiados intentos con códigos que no existen. Espera unos minutos e inténtalo de nuevo.';
+function mensajeEsperaCambio(hastaISO){
+  const ms = hastaISO ? Date.parse(hastaISO) - Date.now() : NaN;
+  const horas = Number.isFinite(ms) ? Math.max(1, Math.ceil(ms / 3600000)) : null;
+  return 'Este código se cambió de dispositivo hace poco. ' + (horas ? `Podrás cambiarlo de nuevo en unas ${horas} hora${horas === 1 ? '' : 's'}.` : 'Inténtalo de nuevo más tarde.');
+}
 /* Paso 1: "Validar". Solo consulta el código (no lo activa ni inicia la cuenta regresiva). */
 async function validarCodigoIngresado(){
   if(codigoIncompletoEnCajas()){ mensajeLogin('Completa los 8 caracteres de tu código', 'error'); return; }
@@ -2255,6 +2289,7 @@ async function validarCodigoIngresado(){
   if(btn) btn.disabled = false;
   mensajeLogin('');
 
+  if(info && info.limitado){ mensajeLogin(MSG_DEMASIADOS_INTENTOS, 'error'); return; }
   // Servidor sin la función consultar_codigo (SQL sin actualizar): flujo anterior, pide los datos directo
   if(!info || typeof info.existe === 'undefined'){ mostrarPasoLogin('datos'); return; }
 
@@ -2286,6 +2321,7 @@ async function validarCodigoIngresado(){
 
 async function continuarTrasLogin(){
   bloqueoPorConexion = false;
+  if(modoVencido) salirModoVencido();
   modoPrueba = false; // un código real siempre reemplaza al modo de prueba, aunque haya estado activo
   marcarSesionCerrada(false);
   ocultarPantallaLogin();
@@ -2321,14 +2357,14 @@ async function verificarLicencia(lic, timeoutMs){
     if(r.error) throw r.error;
     data = r.data;
   }catch(e){ return {estado: 'sin_conexion'}; }
-  if(!data || typeof data.existe === 'undefined') return {estado: 'sin_conexion'};
+  if(!data || data.limitado || typeof data.existe === 'undefined') return {estado: 'sin_conexion'}; // limitado: demasiadas consultas, se reintenta luego
   if(data.ahora) registrarHoraServidor(data.ahora);
   if(!data.existe) return {estado: 'bloqueada', motivo: 'no_existe'};
   if(data.estado === 'dado_de_baja') return {estado: 'bloqueada', motivo: 'baja'};
   if(!data.fingerprint_coincide) return {estado: 'bloqueada', motivo: 'otro_dispositivo'};
   if(data.fecha_vencimiento) lic.fechaVencimiento = data.fecha_vencimiento; // el admin pudo haber cambiado la fecha
   if(data.tipo) lic.tipo = data.tipo;
-  if(!licenciaVigente(lic)) return {estado: 'bloqueada', motivo: 'vencida'};
+  if(!licenciaVigente(lic)){ guardarLicenciaLocal(lic); return {estado: 'bloqueada', motivo: 'vencida'}; }
   lic.ultimaOk = ahoraMs();
   guardarLicenciaLocal(lic);
   return {estado: 'ok'};
@@ -2340,6 +2376,31 @@ const MENSAJES_BLOQUEO_LICENCIA = {
   vencida: 'Tu suscripción venció. Ingresa un código nuevo para continuar.',
   sin_conexion: 'Necesitamos verificar tu código con internet. Conéctate y la app se abrirá sola.'
 };
+/* -- Suscripción vencida: la app abre en SOLO LECTURA (se pueden ver los datos y exportarlos, no editar) -- */
+let modoVencido = false;
+const MSG_VENCIDA = 'Tu suscripción venció: la app está en solo lectura. Ingresa un código nuevo para seguir editando.';
+function bloqueadoPorVencida(){
+  if(modoVencido){ toast(MSG_VENCIDA); return true; }
+  return false;
+}
+async function abrirEnModoVencido(lic){
+  bloqueoPorConexion = false;
+  const yaEstaba = modoVencido;
+  modoVencido = true; modoPrueba = false;
+  document.body.classList.add('modo-vencido');
+  ocultarPantallaLogin();
+  if(!appPrincipalIniciada) await iniciarAppPrincipal();
+  else if(!yaEstaba){ selectedNumbers = new Set(); actualizarBarraSeleccion(); showView('home'); }
+  actualizarEstadoBotonNuevoSorteo();
+  mostrarAvisoVencimientoSiAplica(lic);
+}
+function salirModoVencido(){
+  if(!modoVencido) return;
+  modoVencido = false;
+  document.body.classList.remove('modo-vencido');
+  actualizarEstadoBotonNuevoSorteo();
+  if(appPrincipalIniciada) showView('home');
+}
 let bloqueoPorConexion = false; // la pantalla de ingreso apareció solo por falta de internet (no se borra la licencia)
 /* Cierra el acceso: la app queda vacía (los sorteos se guardan bajo su código) y se muestra el ingreso con el motivo */
 async function bloquearPorLicencia(motivo){
@@ -2366,16 +2427,23 @@ async function revisarLicenciaAbierta(){
   try{
     const r = await verificarLicencia(lic);
     ultimaRevisionLicenciaMs = Date.now();
-    if(r.estado === 'bloqueada') await bloquearPorLicencia(r.motivo);
-    else if(r.estado === 'sin_conexion'){
-      if(!dentroDeGracia(lic) || !licenciaVigente(lic)) await bloquearPorLicencia(licenciaVigente(lic) ? 'sin_conexion' : 'vencida');
-    } else mostrarAvisoVencimientoSiAplica(lic);
+    if(r.estado === 'bloqueada'){
+      if(r.motivo === 'vencida') await abrirEnModoVencido(leerLicenciaLocal() || lic);
+      else await bloquearPorLicencia(r.motivo);
+    } else if(r.estado === 'sin_conexion'){
+      if(!licenciaVigente(lic)) await abrirEnModoVencido(lic);
+      else if(!dentroDeGracia(lic)) await bloquearPorLicencia('sin_conexion');
+    } else {
+      if(modoVencido) salirModoVencido(); // el admin extendió el vencimiento
+      mostrarAvisoVencimientoSiAplica(lic);
+    }
   } finally { verificandoLicencia = false; }
 }
 /* Arranque con un código guardado: true si la app se abrió */
 async function arrancarConLicencia(lic){
-  if(!licenciaVigente(lic)) return false;
-  const rapida = Number.isFinite(lic.ultimaOk) && ahoraMs() - lic.ultimaOk >= -86400000 && ahoraMs() - lic.ultimaOk < LICENCIA_RAPIDA_MS;
+  if(!lic || !lic.fechaVencimiento) return false;
+  const vigente = licenciaVigente(lic);
+  const rapida = vigente && Number.isFinite(lic.ultimaOk) && ahoraMs() - lic.ultimaOk >= -86400000 && ahoraMs() - lic.ultimaOk < LICENCIA_RAPIDA_MS;
   if(rapida){
     modoPrueba = false;
     ocultarPantallaLogin();
@@ -2384,19 +2452,24 @@ async function arrancarConLicencia(lic){
     revisarLicenciaAbierta(); // no bloquea: se revalida después de pintar la app
     return true;
   }
-  // Primera vez (o hace tiempo): se confirma con el servidor ANTES de abrir la app
+  // Primera vez (o hace tiempo, o ya vencida localmente): se confirma con el servidor ANTES de abrir la app
   mostrarPantallaLogin();
   const volver = document.getElementById('btn-login-volver'); if(volver) volver.style.display = 'none';
   mensajeLogin('Verificando tu código...', 'info');
   const r = await verificarLicencia(lic);
+  if(r.estado === 'bloqueada' && r.motivo === 'vencida'){ await abrirEnModoVencido(leerLicenciaLocal() || lic); return true; }
   if(r.estado === 'bloqueada'){ await bloquearPorLicencia(r.motivo); return true; }
-  if(r.estado === 'sin_conexion' && !dentroDeGracia(lic)){
-    bloqueoPorConexion = true;
-    mensajeLogin(MENSAJES_BLOQUEO_LICENCIA.sin_conexion, 'error');
-    return true; // la pantalla de ingreso queda con el aviso; al volver internet se reintenta sola
+  if(r.estado === 'sin_conexion'){
+    if(!vigente){ await abrirEnModoVencido(lic); return true; } // vencida y sin internet: solo lectura
+    if(!dentroDeGracia(lic)){
+      bloqueoPorConexion = true;
+      mensajeLogin(MENSAJES_BLOQUEO_LICENCIA.sin_conexion, 'error');
+      return true; // la pantalla de ingreso queda con el aviso; al volver internet se reintenta sola
+    }
   }
   bloqueoPorConexion = false;
   modoPrueba = false;
+  if(modoVencido) salirModoVencido();
   ocultarPantallaLogin();
   await iniciarAppPrincipal();
   mostrarAvisoVencimientoSiAplica(lic);
@@ -2410,7 +2483,7 @@ function mostrarAvisoVencimientoSiAplica(lic){
   const umbral = avisoDiasPorTipoLicencia(lic.tipo);
   if(dias <= 0){
     banner.className = 'licencia-banner licencia-banner-vencida';
-    banner.innerHTML = '<span>Tu suscripción venció. Ingresa un código nuevo para seguir usando la app.</span>' +
+    banner.innerHTML = '<span>Tu suscripción venció: la app está en solo lectura (puedes ver y exportar tus datos). Ingresa un código nuevo para seguir editando.</span>' +
       '<button class="btn-secondary" id="btn-ir-nuevo-codigo">Ingresar código</button>';
     banner.style.display = 'flex';
   } else if(dias <= umbral){
@@ -2492,6 +2565,7 @@ async function cerrarSesion(){
   marcarSesionCerrada(true);
   borrarLicenciaLocal();
   modoPrueba = false;
+  modoVencido = false; document.body.classList.remove('modo-vencido');
   const banner = document.getElementById('licencia-banner');
   if(banner) banner.style.display = 'none';
   actualizarBotonCerrarSesion();
@@ -2763,6 +2837,7 @@ async function cargarEstadoInicial(){
 }
 
 function saveState(){
+  if(modoVencido) return; // solo lectura: nada se guarda
   dbSetState(state).catch(e=>{
     console.warn('No se pudo guardar en IndexedDB', e);
     toast('No se pudo guardar (IndexedDB no disponible o sin espacio)');
@@ -3094,6 +3169,7 @@ async function eliminarTodosLosRegistros(){
 /* ---------- Respaldo: exportar / importar JSON ---------- */
 document.getElementById('btn-abrir-respaldo').addEventListener('click', ()=> openModal('modal-backup'));
 document.getElementById('btn-eliminar-todo').addEventListener('click', ()=>{
+  if(bloqueadoPorVencida()) return;
   const n = state.sorteos.length;
   if(!n){ toast('No hay registros para eliminar'); return; }
   confirmar('Eliminar todos los registros',
@@ -3106,7 +3182,7 @@ document.getElementById('btn-importar-json').addEventListener('click', ()=>{
 });
 document.getElementById('f-importar-json').addEventListener('change', (e)=>{
   const file = e.target.files[0];
-  if(file) importarJSON(file);
+  if(file && !bloqueadoPorVencida()) importarJSON(file);
   e.target.value = '';
 });
 
@@ -3249,10 +3325,11 @@ function actualizarEstadoBotonNuevoSorteo(){
   const btn = document.getElementById('btn-nuevo-sorteo');
   if(!btn) return;
   const agotado = modoPrueba && contarSorteosPruebaAbiertos() >= 1;
-  btn.classList.toggle('btn-deshabilitado', !!agotado);
-  btn.title = agotado ? 'Ya tienes un sorteo de prueba abierto. Finalízalo o bórralo para crear otro.' : '';
+  btn.classList.toggle('btn-deshabilitado', !!agotado || modoVencido);
+  btn.title = modoVencido ? MSG_VENCIDA : (agotado ? 'Ya tienes un sorteo de prueba abierto. Finalízalo o bórralo para crear otro.' : '');
 }
 document.getElementById('btn-nuevo-sorteo').addEventListener('click', ()=>{
+  if(bloqueadoPorVencida()) return;
   if(modoPrueba && contarSorteosPruebaAbiertos() >= 1){
     toast('Ya tienes un sorteo de prueba abierto. Finalízalo o bórralo para crear otro.');
     return;
@@ -3387,6 +3464,7 @@ function renderDashboard(){
   const stats = statsDe(sorteo);
   const cd = countdownBadge(sorteo.fechaSorteo);
   const soloLectura = !!sorteo.archivado;
+  const sinEdicion = soloLectura || modoVencido; // vencida: se ve todo, no se edita
 
   const colorBanner = colorCardAttrs(sorteo, 'dash-banner-color');
   const bannerBgStyle = sorteo.imagen ? ` style="background-image:url('${escapeAttr(sorteo.imagen)}')"` : '';
@@ -3436,7 +3514,7 @@ function renderDashboard(){
         <div class="dash-banner-title">${escapeHtml(sorteo.titulo)}</div>
         <div class="dash-banner-meta">${pillHtml}<span class="dash-banner-fecha">${soloLectura ? fechaDoble(sorteo.fechaSorteo) : formatFechaLarga(sorteo.fechaSorteo)}</span></div>
       </div>
-      ${!soloLectura ? `<button class="dash-banner-edit" id="dash-btn-cambiar-imagen" title="Cambiar imagen">${icon('pencil')}</button>
+      ${!sinEdicion ? `<button class="dash-banner-edit" id="dash-btn-cambiar-imagen" title="Cambiar imagen">${icon('pencil')}</button>
       <input type="file" id="f-cambiar-imagen" accept="image/*" style="display:none;">` : ''}
     </div>
 
@@ -3455,7 +3533,7 @@ function renderDashboard(){
           <div class="stat-box money"><div class="num">${formatColones(totalRecaudado(sorteo, stats))}</div><div class="lbl">Recaudado</div></div>
         </div>
       </div>
-      ${!soloLectura ? `<div class="dash-actions">
+      ${!sinEdicion ? `<div class="dash-actions">
         <button class="btn-secondary" id="dash-btn-fecha">Editar fecha</button>
         <button class="btn-secondary" id="dash-btn-editar">Editar sorteo</button>
       </div>` : ''}
@@ -3463,7 +3541,7 @@ function renderDashboard(){
 
     <div id="dash-tab-content" class="${animarEntrada ? 'anim-up-d3' : 'anim-up'}"></div>
 
-    ${mostrarStats ? `
+    ${mostrarStats && !modoVencido ? `
     <div class="dash-actions dash-actions-final ${animarEntrada ? 'anim-up-d3' : 'anim-up'}">
       <button class="btn-secondary" id="dash-btn-archivar">${soloLectura ? 'Restaurar sorteo' : 'Finalizar sorteo'}</button>
       <button class="btn-danger" id="dash-btn-eliminar">${icon('trash')}<span>Eliminar sorteo</span></button>
@@ -3928,6 +4006,7 @@ function renderNumbersGrid(sorteo, filtro){
   const listCont = document.getElementById('numbers-list');
   if(!grid || !listCont) return; // la pestaña de Números no está activa
   const soloLectura = !!sorteo.archivado;
+  const sinEdicion = soloLectura || modoVencido; // vencida: los números se ven pero no se pueden tocar
   const nums = sorteo.numeros.filter(n => n.serie === currentSerie);
 
   // Al buscar, la grilla desaparece por completo y solo se enlistan los números que coinciden.
@@ -3938,7 +4017,7 @@ function renderNumbersGrid(sorteo, filtro){
     listCont.innerHTML = encontrados.length ? encontrados.map(n=>{
       const cls = n.estado === 'disponible' ? '' : n.estado;
       const sel = selectedNumbers.has(n.numero) ? 'selected' : '';
-      const ro = soloLectura ? 'readonly' : '';
+      const ro = sinEdicion ? 'readonly' : '';
       const detalle = n.comprador
         ? `${escapeHtml(n.comprador)}${n.telefono ? ' · ' + escapeHtml(n.telefono) : ''}`
         : `<span class="muted">${estadoTexto(n.estado)}</span>`;
@@ -3950,7 +4029,7 @@ function renderNumbersGrid(sorteo, filtro){
     }).join('') : `<div class="empty-state" style="padding:24px;">Sin coincidencias para "${escapeHtml(filtro)}"</div>`;
 
     listCont.querySelectorAll('.num-row').forEach(row=>{
-      if(soloLectura){
+      if(sinEdicion){
         row.addEventListener('click', ()=>{
           const n = getNumero(sorteo, currentSerie, row.dataset.numero);
           toast(`N° ${n.numero}: ${estadoTexto(n.estado)}${n.comprador ? ' · ' + n.comprador : ''}`);
@@ -3969,7 +4048,7 @@ function renderNumbersGrid(sorteo, filtro){
   grid.innerHTML = nums.map(n=>{
     const cls = n.estado === 'disponible' ? '' : n.estado;
     const sel = selectedNumbers.has(n.numero) ? 'selected' : '';
-    const ro = soloLectura ? 'readonly' : '';
+    const ro = sinEdicion ? 'readonly' : '';
     return `<button class="num-btn ${cls} ${sel} ${ro}" data-numero="${n.numero}" title="${n.estado === 'disponible' ? 'Disponible' : escapeHtml(n.comprador||'')}">${n.numero}</button>`;
   }).join('') + (soloLectura ? '' : `<div class="numbers-descarga">
     <button type="button" class="btn-secondary" id="btn-descargar-disponibles-grid"${pngBloqueado(sorteo) ? ' disabled' : ''} title="${pngBloqueado(sorteo) ? PNG_BLOQUEADO_TEXTO : 'Descarga una imagen con los números disponibles, con los colores del tema actual'}">${icon('download')} Descargar números disponibles</button>
@@ -3978,7 +4057,7 @@ function renderNumbersGrid(sorteo, filtro){
   if(btnDescarga) btnDescarga.addEventListener('click', () => descargarDisponiblesDesdeGrilla(sorteo));
   aplicarTamanoGrid();
   grid.querySelectorAll('.num-btn').forEach(btn=>{
-    if(soloLectura){
+    if(sinEdicion){
       btn.addEventListener('click', ()=>{
         const n = getNumero(sorteo, currentSerie, btn.dataset.numero);
         toast(`N° ${n.numero}: ${estadoTexto(n.estado)}${n.comprador ? ' · ' + n.comprador : ''}`);
@@ -3992,7 +4071,7 @@ function renderNumbersGrid(sorteo, filtro){
 /* ---------- Selección múltiple y barra flotante ---------- */
 function toggleSeleccion(numero){
   const sorteoActual = getSorteo(currentSorteoId);
-  if(sorteoActual && sorteoActual.archivado) return; // solo lectura: no se permite seleccionar
+  if(modoVencido || (sorteoActual && sorteoActual.archivado)) return; // solo lectura: no se permite seleccionar
   if(selectedNumbers.has(numero)) selectedNumbers.delete(numero);
   else selectedNumbers.add(numero);
   const sorteo = getSorteo(currentSorteoId);
@@ -4338,7 +4417,7 @@ function histItemHTML(key, serie, numero, campos, accionesHtml){
     </div>
   </li>`;
 }
-function histArchivado(){ return `<span class="hist-lock">${icon('lock')} Finalizado · solo lectura</span>`; }
+function histArchivado(sorteo){ return `<span class="hist-lock">${icon('lock')} ${sorteo && sorteo.archivado ? 'Finalizado' : 'Suscripción vencida'} · solo lectura</span>`; }
 function tablaPendientes(rows){
   return `<ul class="hist-list hist-pendientes" role="list">
     ${rows.map(r => histItemHTML(`${r.sorteo.id}|${r.item.serie}|${r.item.numero}`, r.sorteo.tipo === 'series' ? r.item.serie : null, r.item.numero, [
@@ -4346,7 +4425,7 @@ function tablaPendientes(rows){
       ['Teléfono', escapeHtml(r.item.telefono || '—')],
       ['Apartado', histFecha(r.item.fechaApartado)],
       ['Notas', escapeHtml(r.item.notas || '—')]
-    ], r.sorteo.archivado ? histArchivado()
+    ], (r.sorteo.archivado || modoVencido) ? histArchivado(r.sorteo)
       : `<button class="btn-primary btn-sm" data-pagar="${r.sorteo.id}||${r.item.serie}||${r.item.numero}">Marcar pagado</button>
          <button class="btn-danger btn-sm" data-liberar="${r.sorteo.id}||${r.item.serie}||${r.item.numero}">Liberar</button>`)).join('')}
   </ul>`;
@@ -4359,7 +4438,7 @@ function tablaPagados(rows){
       ['Apartado', histFecha(r.item.fechaApartado)],
       ['Pagado', histFecha(r.item.fechaPago)],
       ['Notas', escapeHtml(r.item.notas || '—')]
-    ], r.sorteo.archivado ? histArchivado()
+    ], (r.sorteo.archivado || modoVencido) ? histArchivado(r.sorteo)
       : `<button class="btn-danger btn-sm" data-liberar="${r.sorteo.id}||${r.item.serie}||${r.item.numero}">Liberar</button>`)).join('')}
   </ul>`;
 }
@@ -5026,7 +5105,7 @@ configurarBotonContacto('btn-licencia-contacto', 'licencia-contacto-opciones', '
 
 (async function initApp(){
   const lic = leerLicenciaLocal();
-  if(licenciaVigente(lic)){
+  if(lic && lic.fechaVencimiento){ // con código guardado (vigente o vencido: si venció, la app abre en solo lectura)
     await arrancarConLicencia(lic);
     return;
   }
@@ -5058,6 +5137,7 @@ if(typeof fetch === 'function'){
   });
   setInterval(chequearVersionApp, VERSION_REVISAR_CADA_MS);
   setInterval(revisarLicenciaAbierta, LICENCIA_REVISAR_CADA_MS);
+  setInterval(aplicarActualizacionPendiente, 8000); // si había un formulario abierto, actualiza en cuanto se cierre
 }
 </script>
 <script>

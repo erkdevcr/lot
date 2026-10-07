@@ -150,6 +150,18 @@
     </div>
     <div id="tabla-intentos-wrap"><div class="empty">Cargando...</div></div>
   </div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <h2 style="margin:0;">Códigos y clientes eliminados</h2>
+      <button class="btn-secondary btn-sm" id="btn-refrescar-eliminados">Actualizar</button>
+    </div>
+    <p class="sub" style="margin:0 0 14px;">Historial de códigos/clientes eliminados, para auditorías futuras. Los intentos de inicio de sesión asociados tampoco se borran. No se pueden restaurar desde aquí.</p>
+    <div class="filtros">
+      <input type="text" id="filtro-busqueda-eliminados" placeholder="Buscar por código, nombre o teléfono...">
+    </div>
+    <div id="tabla-eliminados-wrap"><div class="empty">Cargando...</div></div>
+  </div>
 </div>
 
 <!-- MODAL: editar fecha de vencimiento -->
@@ -186,6 +198,7 @@ let todosLosCodigos = [];
 let codigoEditandoFecha = null;
 
 function pad2(n){ return String(n).padStart(2,'0'); }
+function fechaLocalYMD(d){ return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
 function formatFecha(fechaISO){
   if(!fechaISO) return '—';
   const d = new Date(fechaISO);
@@ -217,6 +230,7 @@ function mostrarPanelAdmin(){
   document.getElementById('panel-admin').style.display = 'block';
   cargarCodigos();
   cargarIntentos();
+  cargarEliminados();
 }
 
 document.getElementById('btn-admin-login').addEventListener('click', async ()=>{
@@ -243,13 +257,22 @@ document.getElementById('btn-cerrar-sesion').addEventListener('click', async ()=
 /* ---------- Generador de códigos ---------- */
 const CHARSET_CODIGO = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // sin 0/O/1/I para evitar confusiones
 function generarCodigoAleatorio(){
-  let partes = [];
-  for(let g=0; g<2; g++){
-    let grupo = '';
-    for(let i=0; i<4; i++) grupo += CHARSET_CODIGO[Math.floor(Math.random()*CHARSET_CODIGO.length)];
-    partes.push(grupo);
+  // Aleatorio criptográfico (32 símbolos: 256 es múltiplo de 32, así que no hay sesgo al tomar el byte & 31)
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  const c = Array.from(bytes, b => CHARSET_CODIGO[b & 31]);
+  return c.slice(0, 4).join('') + '-' + c.slice(4).join('');
+}
+function generarLoteDeCodigos(cantidad, tipo, duracionDias){
+  const vistos = new Set();
+  const lote = [];
+  while(lote.length < cantidad){
+    const codigo = generarCodigoAleatorio();
+    if(vistos.has(codigo)) continue; // sin repetidos dentro del mismo lote
+    vistos.add(codigo);
+    lote.push({ codigo, tipo, duracion_dias: duracionDias, estado: 'sin_usar' });
   }
-  return partes.join('-');
+  return lote;
 }
 
 document.getElementById('btn-generar-codigos').addEventListener('click', async ()=>{
@@ -258,13 +281,14 @@ document.getElementById('btn-generar-codigos').addEventListener('click', async (
   const msg = document.getElementById('gen-msg');
   const duracionDias = DURACION_POR_TIPO[tipo];
 
-  const nuevos = [];
-  for(let i=0; i<cantidad; i++){
-    nuevos.push({ codigo: generarCodigoAleatorio(), tipo, duracion_dias: duracionDias, estado: 'sin_usar' });
-  }
-
   toast(msg, 'Generando...', null);
-  const { data, error } = await sb.from('licencias').insert(nuevos).select();
+  let data = null, error = null;
+  // Si un código ya existe en la base (casi imposible), se vuelve a generar el lote completo (hasta 5 veces)
+  for(let intento = 0; intento < 5; intento++){
+    const r = await sb.from('licencias').insert(generarLoteDeCodigos(cantidad, tipo, duracionDias)).select();
+    data = r.data; error = r.error;
+    if(!error || error.code !== '23505') break;
+  }
   if(error){
     toast(msg, 'No se pudieron generar los códigos: ' + error.message, 'error');
     return;
@@ -346,7 +370,9 @@ function renderTablaCodigos(){
             <td data-label="Dispositivo"><span class="mono" title="${escapeHtml(r.fingerprint)||''}">${r.fingerprint ? escapeHtml(r.fingerprint.slice(0,10)) + '…' : '—'}</span></td>
             <td data-label="Acciones">
               <button class="btn-secondary btn-sm" data-accion="fecha" ${!r.fecha_vencimiento ? 'disabled' : ''}>Cambiar fecha</button>
+              <button class="btn-secondary btn-sm" data-accion="cambio" title="Reinicia el contador de cambios de dispositivo (máximo 3 por mes)" ${r.estado !== 'activo' ? 'disabled' : ''}>Permitir cambio de dispositivo</button>
               <button class="btn-danger btn-sm" data-accion="baja" ${r.estado === 'dado_de_baja' ? 'disabled' : ''}>Dar de baja</button>
+              <button class="btn-danger btn-sm" data-accion="eliminar">Eliminar</button>
             </td>
           </tr>`;
         }).join('')}
@@ -359,7 +385,9 @@ function renderTablaCodigos(){
     const row = todosLosCodigos.find(r=>String(r.id) === id);
     btn.addEventListener('click', ()=>{
       if(btn.dataset.accion === 'fecha') abrirModalFecha(row);
+      else if(btn.dataset.accion === 'cambio') permitirCambioDispositivo(row);
       else if(btn.dataset.accion === 'baja') darDeBajaCodigo(row);
+      else if(btn.dataset.accion === 'eliminar') eliminarCodigo(row);
     });
   });
 }
@@ -368,6 +396,13 @@ document.getElementById('filtro-busqueda').addEventListener('input', renderTabla
 document.getElementById('filtro-estado').addEventListener('change', renderTablaCodigos);
 document.getElementById('btn-refrescar-codigos').addEventListener('click', cargarCodigos);
 
+async function permitirCambioDispositivo(row){
+  if(!confirm(`¿Permitir que el código ${row.codigo} se cambie de dispositivo?\n\nSe reinicia su contador (máximo 3 cambios por mes y 12 horas de espera entre uno y otro). No cambia el dispositivo actual: el cliente podrá tomar control desde el nuevo cuando ingrese su código.`)) return;
+  const { error } = await sb.from('licencias').update({ cambios_reiniciados_en: new Date().toISOString() }).eq('id', row.id);
+  if(error){ alert('No se pudo reiniciar el contador (¿ya corriste el parche SQL 1.0.9?): ' + error.message); return; }
+  alert('Listo: el cliente ya puede cambiar de dispositivo.');
+}
+
 async function darDeBajaCodigo(row){
   if(!confirm(`¿Dar de baja el código ${row.codigo}? El dispositivo que lo tenga activo perderá el acceso de inmediato.`)) return;
   const { error } = await sb.from('licencias').update({ estado: 'dado_de_baja' }).eq('id', row.id);
@@ -375,10 +410,20 @@ async function darDeBajaCodigo(row){
   cargarCodigos();
 }
 
+async function eliminarCodigo(row){
+  const detalle = row.nombre_cliente ? ` (cliente: ${row.nombre_cliente})` : '';
+  if(!confirm(`¿Eliminar el código ${row.codigo}${detalle} de forma permanente?\n\nSe quitará de esta lista, pero quedará guardado en "Códigos y clientes eliminados" junto con su historial de intentos, para auditorías futuras. Esta acción no se puede deshacer desde aquí.`)) return;
+  const { error } = await sb.rpc('eliminar_codigo', { p_id: row.id });
+  if(error){ alert('No se pudo eliminar: ' + error.message); return; }
+  cargarCodigos();
+  cargarEliminados();
+}
+
 function abrirModalFecha(row){
   codigoEditandoFecha = row;
   const input = document.getElementById('modal-fecha-input');
-  input.value = row.fecha_vencimiento ? new Date(row.fecha_vencimiento).toISOString().slice(0,10) : '';
+  // Se muestra el día en hora LOCAL (igual que la lista), para que lo que ves aquí y en la tabla coincida
+  input.value = row.fecha_vencimiento ? fechaLocalYMD(new Date(row.fecha_vencimiento)) : '';
   document.getElementById('modal-fecha-overlay').style.display = 'flex';
 }
 document.getElementById('btn-modal-fecha-cancelar').addEventListener('click', ()=>{
@@ -388,7 +433,7 @@ document.getElementById('btn-modal-fecha-cancelar').addEventListener('click', ()
 document.getElementById('btn-modal-fecha-guardar').addEventListener('click', async ()=>{
   const nueva = document.getElementById('modal-fecha-input').value;
   if(!nueva || !codigoEditandoFecha) return;
-  const fechaISO = new Date(nueva + 'T23:59:59Z').toISOString(); // fin del dia elegido, fijo en UTC (evita que la zona horaria del navegador corra la fecha)
+  const fechaISO = new Date(nueva + 'T23:59:59').toISOString(); // fin del día elegido en hora local
   const { error } = await sb.from('licencias').update({ fecha_vencimiento: fechaISO }).eq('id', codigoEditandoFecha.id);
   document.getElementById('modal-fecha-overlay').style.display = 'none';
   if(error){ alert('No se pudo actualizar la fecha: ' + error.message); return; }
@@ -427,6 +472,60 @@ async function cargarIntentos(){
     </table>`;
 }
 document.getElementById('btn-refrescar-intentos').addEventListener('click', cargarIntentos);
+
+/* ---------- Códigos y clientes eliminados (auditoría) ---------- */
+let todosLosEliminados = [];
+
+async function cargarEliminados(){
+  const wrap = document.getElementById('tabla-eliminados-wrap');
+  wrap.innerHTML = '<div class="empty">Cargando...</div>';
+  const { data, error } = await sb.from('licencias_eliminadas').select('*').order('eliminado_en', { ascending: false }).limit(500);
+  if(error){
+    wrap.innerHTML = `<div class="empty">No se pudo cargar: ${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  todosLosEliminados = data || [];
+  renderTablaEliminados();
+}
+
+function renderTablaEliminados(){
+  const wrap = document.getElementById('tabla-eliminados-wrap');
+  const busqueda = document.getElementById('filtro-busqueda-eliminados').value.trim().toLowerCase();
+
+  let filas = todosLosEliminados.filter(r=>{
+    if(!busqueda) return true;
+    const campo = [r.codigo, r.nombre_cliente, r.telefono_cliente].filter(Boolean).join(' ').toLowerCase();
+    return campo.includes(busqueda);
+  });
+
+  if(filas.length === 0){
+    wrap.innerHTML = '<div class="empty">No hay códigos eliminados que coincidan.</div>';
+    return;
+  }
+
+  wrap.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Código</th><th>Tipo</th><th>Cliente</th><th>Teléfono</th><th>Estado al eliminar</th>
+        <th>Vencía</th><th>Eliminado</th><th>Por</th>
+      </tr></thead>
+      <tbody>
+        ${filas.map(r=>`<tr>
+          <td data-label="Código"><span class="mono">${escapeHtml(r.codigo)}</span></td>
+          <td data-label="Tipo">${TIPO_LEGIBLE[r.tipo] || r.tipo || '—'}</td>
+          <td data-label="Cliente">${escapeHtml(r.nombre_cliente) || '—'}</td>
+          <td data-label="Teléfono">${escapeHtml(r.telefono_cliente) || '—'}</td>
+          <td data-label="Estado al eliminar"><span class="pill pill-${r.estado}">${ESTADO_LEGIBLE[r.estado] || r.estado || '—'}</span></td>
+          <td data-label="Vencía">${r.fecha_vencimiento ? formatFecha(r.fecha_vencimiento) : '—'}</td>
+          <td data-label="Eliminado">${formatFecha(r.eliminado_en)}</td>
+          <td data-label="Por">${escapeHtml(r.eliminado_por) || '—'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+document.getElementById('filtro-busqueda-eliminados').addEventListener('input', renderTablaEliminados);
+document.getElementById('btn-refrescar-eliminados').addEventListener('click', cargarEliminados);
 
 initSesion();
 </script>
