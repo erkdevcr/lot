@@ -697,7 +697,7 @@ d.setAttribute('data-theme',t);})();
     max-width:calc(100vw - var(--space-6));text-align:center;
     box-shadow:var(--toast-shadow);
     backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
-    z-index:100;opacity:0;pointer-events:none;transition:opacity .2s, transform .2s;
+    z-index:1100;opacity:0;pointer-events:none;transition:opacity .2s, transform .2s;
   }
   .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
   /* Si la barra de selección está visible, el toast se ubica encima de ella */
@@ -1771,7 +1771,7 @@ d.setAttribute('data-theme',t);})();
       <button type="button" class="menu-ajustes-item menu-ajustes-item-peligro" id="btn-cerrar-sesion" title="Cerrar sesión en este dispositivo"><svg class="icon"><use href="#icon-logout"></use></svg><span>Cerrar sesión</span></button>
     </div>
   </div>
-  <div class="menu-ajustes-pie" id="menu-ajustes-pie">V <span id="menu-ajustes-version">1.0.7</span> · Copyright © ErkDevCr <span id="menu-ajustes-anio">2026</span></div>
+  <div class="menu-ajustes-pie" id="menu-ajustes-pie">V <span id="menu-ajustes-version">1.0.8</span> · Copyright © ErkDevCr <span id="menu-ajustes-anio">2026</span></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1808,7 +1808,7 @@ catch(e){ console.warn('No se pudo inicializar el cliente de Supabase', e); }
    APP_VERSION del nuevo index.html. Cada dispositivo lo consulta (sin usar la copia guardada) y, si hay una
    versión más nueva, recarga la app sola. No toca sorteos ni licencia (viven en este dispositivo).
    ========================================================= */
-const APP_VERSION = '1.0.7';
+const APP_VERSION = '1.0.8';
 const VERSION_URL = 'version.json';
 const VERSION_REVISAR_CADA_MS = 5 * 60 * 1000;
 let actualizandoApp = false;
@@ -1925,13 +1925,39 @@ function guardarLicenciaLocal(lic){
 function borrarLicenciaLocal(){
   try{ localStorage.removeItem(LICENCIA_KEY); }catch(e){}
 }
+/* -- Reloj confiable: el tiempo de la app nunca retrocede y, cuando hay internet, se alinea con la hora del servidor.
+      Así, atrasar el reloj del teléfono no revive un código vencido. -- */
+const TIEMPO_KEY = 'sorteos_tiempo_v1'; // {max: mayor hora vista (ms), des: desfase servidor-local (ms)}
+let tiempoApp = (function(){
+  try{ const t = JSON.parse(localStorage.getItem(TIEMPO_KEY) || 'null'); if(t && Number.isFinite(t.max) && Number.isFinite(t.des)) return t; }catch(e){}
+  return {max: 0, des: 0};
+})();
+let tiempoGuardadoEn = 0;
+function guardarTiempoApp(){
+  tiempoGuardadoEn = Date.now();
+  try{ localStorage.setItem(TIEMPO_KEY, JSON.stringify(tiempoApp)); }catch(e){}
+}
+function ahoraMs(){
+  let t = Date.now() + (tiempoApp.des || 0);
+  if(t < tiempoApp.max) return tiempoApp.max; // el reloj del dispositivo retrocedió: se ignora
+  tiempoApp.max = t;
+  if(Date.now() - tiempoGuardadoEn > 30000) guardarTiempoApp();
+  return t;
+}
+/* Hora del servidor (ISO): es la referencia; permite corregir también un reloj mal puesto hacia el futuro */
+function registrarHoraServidor(iso){
+  const sv = Date.parse(iso);
+  if(!Number.isFinite(sv)) return;
+  tiempoApp.des = sv - Date.now();
+  tiempoApp.max = sv;
+  guardarTiempoApp();
+}
 function licenciaVigente(lic){
-  return !!(lic && lic.fechaVencimiento && new Date(lic.fechaVencimiento) > new Date());
+  return !!(lic && lic.fechaVencimiento && new Date(lic.fechaVencimiento).getTime() > ahoraMs());
 }
 function diasRestantesLicencia(fechaVencimientoISO){
   const venc = new Date(fechaVencimientoISO);
-  const ahora = new Date();
-  return Math.ceil((venc - ahora) / 86400000);
+  return Math.ceil((venc.getTime() - ahoraMs()) / 86400000);
 }
 function formatFechaCortaDDMMYY(fechaISO){
   const d = new Date(fechaISO);
@@ -1997,7 +2023,7 @@ function finDePrueba(prueba){
   return fin;
 }
 function diasRestantesPrueba(prueba){
-  return Math.ceil((finDePrueba(prueba) - new Date()) / 86400000);
+  return Math.ceil((finDePrueba(prueba).getTime() - ahoraMs()) / 86400000);
 }
 function pruebaVigente(prueba){
   return !!prueba && diasRestantesPrueba(prueba) > 0;
@@ -2129,7 +2155,7 @@ async function manejarEnvioLogin(forzar, opciones){
 
   // Éxito: 'activado' | 'aceptado' | 'tomado_otro_dispositivo'
   const vencISO = resp.fecha_vencimiento;
-  guardarLicenciaLocal({ codigo, fingerprint: fp, tipo: resp.tipo, fechaVencimiento: vencISO });
+  guardarLicenciaLocal({ codigo, fingerprint: fp, tipo: resp.tipo, fechaVencimiento: vencISO, ultimaOk: ahoraMs() });
   codigoEnCurso = null;
 
   const meses = mesesDeTipoLicencia(resp.tipo);
@@ -2259,6 +2285,7 @@ async function validarCodigoIngresado(){
 }
 
 async function continuarTrasLogin(){
+  bloqueoPorConexion = false;
   modoPrueba = false; // un código real siempre reemplaza al modo de prueba, aunque haya estado activo
   marcarSesionCerrada(false);
   ocultarPantallaLogin();
@@ -2269,24 +2296,111 @@ async function continuarTrasLogin(){
   mostrarAvisoVencimientoSiAplica(licNueva);
 }
 
-/* -- Chequeo silencioso al iniciar: no bloquea la UI, solo sincroniza -- */
-async function chequearLicenciaEnSegundoPlano(lic){
-  if(!sb || !lic) return;
+/* -- Verificación de la licencia contra el servidor --
+   El servidor es quien dice si un código vale: que exista, que no esté dado de baja, que no haya vencido y que siga
+   activo en ESTE dispositivo. Sin internet se permite seguir un tiempo (gracia) desde la última verificación buena;
+   un código que nunca fue verificado por el servidor (p. ej. inventado a mano) no pasa sin conexión. */
+const LICENCIA_GRACIA_MS = 7 * 86400000;       // sin internet: hasta 7 días desde la última verificación buena
+const LICENCIA_RAPIDA_MS = 12 * 3600000;       // verificada hace menos de esto: la app abre al instante y se revalida atrás
+const LICENCIA_REVISAR_CADA_MS = 30 * 60000;   // revalidación mientras la app está abierta
+const LICENCIA_TIMEOUT_MS = 4000;
+let ultimaRevisionLicenciaMs = 0;
+let verificandoLicencia = false;
+function dentroDeGracia(lic){
+  if(!lic || !Number.isFinite(lic.ultimaOk)) return false;
+  const dt = ahoraMs() - lic.ultimaOk;
+  return dt >= -86400000 && dt < LICENCIA_GRACIA_MS;
+}
+async function verificarLicencia(lic, timeoutMs){
+  if(!sb || !lic) return {estado: 'sin_conexion'};
+  let data = null;
   try{
-    const { data, error } = await sb.rpc('consultar_vencimiento', { p_codigo: lic.codigo, p_fingerprint: lic.fingerprint });
-    if(error || !data || !data.existe) return;
-    if(!data.fingerprint_coincide){
-      borrarLicenciaLocal();
-      toast('Este código se activó en otro dispositivo. Ingresa un código para continuar.');
-      mostrarPantallaLogin();
-      return;
-    }
-    if(data.fecha_vencimiento){
-      lic.fechaVencimiento = data.fecha_vencimiento; // el admin pudo haber cambiado la fecha manualmente
-      guardarLicenciaLocal(lic);
-    }
+    const llamada = sb.rpc('consultar_vencimiento', { p_codigo: lic.codigo, p_fingerprint: lic.fingerprint });
+    const limite = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs || LICENCIA_TIMEOUT_MS));
+    const r = await Promise.race([llamada, limite]);
+    if(r.error) throw r.error;
+    data = r.data;
+  }catch(e){ return {estado: 'sin_conexion'}; }
+  if(!data || typeof data.existe === 'undefined') return {estado: 'sin_conexion'};
+  if(data.ahora) registrarHoraServidor(data.ahora);
+  if(!data.existe) return {estado: 'bloqueada', motivo: 'no_existe'};
+  if(data.estado === 'dado_de_baja') return {estado: 'bloqueada', motivo: 'baja'};
+  if(!data.fingerprint_coincide) return {estado: 'bloqueada', motivo: 'otro_dispositivo'};
+  if(data.fecha_vencimiento) lic.fechaVencimiento = data.fecha_vencimiento; // el admin pudo haber cambiado la fecha
+  if(data.tipo) lic.tipo = data.tipo;
+  if(!licenciaVigente(lic)) return {estado: 'bloqueada', motivo: 'vencida'};
+  lic.ultimaOk = ahoraMs();
+  guardarLicenciaLocal(lic);
+  return {estado: 'ok'};
+}
+const MENSAJES_BLOQUEO_LICENCIA = {
+  no_existe: 'Este código ya no es válido en este dispositivo. Ingresa un código válido para continuar.',
+  baja: 'Este código fue dado de baja. Contacta a quien te lo vendió para obtener uno nuevo.',
+  otro_dispositivo: 'Este código se activó en otro dispositivo. Ingresa el código para volver a usarlo aquí.',
+  vencida: 'Tu suscripción venció. Ingresa un código nuevo para continuar.',
+  sin_conexion: 'Necesitamos verificar tu código con internet. Conéctate y la app se abrirá sola.'
+};
+let bloqueoPorConexion = false; // la pantalla de ingreso apareció solo por falta de internet (no se borra la licencia)
+/* Cierra el acceso: la app queda vacía (los sorteos se guardan bajo su código) y se muestra el ingreso con el motivo */
+async function bloquearPorLicencia(motivo){
+  bloqueoPorConexion = (motivo === 'sin_conexion');
+  if(bloqueoPorConexion){
+    // Solo falta internet: se tapa la app con el ingreso, sin tocar licencia ni sorteos; al volver la conexión se reabre sola
+    const bn = document.getElementById('licencia-banner'); if(bn) bn.style.display = 'none';
+    mostrarPantallaLogin();
+    const volver = document.getElementById('btn-login-volver'); if(volver) volver.style.display = 'none';
+  } else {
+    // Si la app todavía no cargó los datos, se cargan antes: cerrarSesion guarda los sorteos bajo el código y vacía la vista
+    if(!appPrincipalIniciada){ try{ await cargarEstadoInicial(); }catch(e){} }
+    await cerrarSesion();
+  }
+  mensajeLogin(MENSAJES_BLOQUEO_LICENCIA[motivo] || MENSAJES_BLOQUEO_LICENCIA.no_existe, 'error');
+}
+/* Revisión periódica con la app abierta: si el servidor ya no avala el código (o pasó la gracia sin internet), se cierra */
+async function revisarLicenciaAbierta(){
+  if(verificandoLicencia || modoPrueba) return;
+  const lic = leerLicenciaLocal();
+  if(!lic || !appPrincipalIniciada) return;
+  if(document.getElementById('pantalla-login').style.display === 'flex') return;
+  verificandoLicencia = true;
+  try{
+    const r = await verificarLicencia(lic);
+    ultimaRevisionLicenciaMs = Date.now();
+    if(r.estado === 'bloqueada') await bloquearPorLicencia(r.motivo);
+    else if(r.estado === 'sin_conexion'){
+      if(!dentroDeGracia(lic) || !licenciaVigente(lic)) await bloquearPorLicencia(licenciaVigente(lic) ? 'sin_conexion' : 'vencida');
+    } else mostrarAvisoVencimientoSiAplica(lic);
+  } finally { verificandoLicencia = false; }
+}
+/* Arranque con un código guardado: true si la app se abrió */
+async function arrancarConLicencia(lic){
+  if(!licenciaVigente(lic)) return false;
+  const rapida = Number.isFinite(lic.ultimaOk) && ahoraMs() - lic.ultimaOk >= -86400000 && ahoraMs() - lic.ultimaOk < LICENCIA_RAPIDA_MS;
+  if(rapida){
+    modoPrueba = false;
+    ocultarPantallaLogin();
+    await iniciarAppPrincipal();
     mostrarAvisoVencimientoSiAplica(lic);
-  }catch(e){ console.warn('Chequeo de licencia no disponible (¿sin conexión?)', e); }
+    revisarLicenciaAbierta(); // no bloquea: se revalida después de pintar la app
+    return true;
+  }
+  // Primera vez (o hace tiempo): se confirma con el servidor ANTES de abrir la app
+  mostrarPantallaLogin();
+  const volver = document.getElementById('btn-login-volver'); if(volver) volver.style.display = 'none';
+  mensajeLogin('Verificando tu código...', 'info');
+  const r = await verificarLicencia(lic);
+  if(r.estado === 'bloqueada'){ await bloquearPorLicencia(r.motivo); return true; }
+  if(r.estado === 'sin_conexion' && !dentroDeGracia(lic)){
+    bloqueoPorConexion = true;
+    mensajeLogin(MENSAJES_BLOQUEO_LICENCIA.sin_conexion, 'error');
+    return true; // la pantalla de ingreso queda con el aviso; al volver internet se reintenta sola
+  }
+  bloqueoPorConexion = false;
+  modoPrueba = false;
+  ocultarPantallaLogin();
+  await iniciarAppPrincipal();
+  mostrarAvisoVencimientoSiAplica(lic);
+  return true;
 }
 
 function mostrarAvisoVencimientoSiAplica(lic){
@@ -2514,12 +2628,112 @@ function dbSetState(data){
   }));
 }
 
+/* ---------- Saneamiento de datos (respaldos importados y datos guardados) ----------
+   Todo lo que entra desde un archivo o desde el almacenamiento pasa por aquí: se conservan solo los campos que la app
+   conoce, con su tipo y formato correctos. Así un JSON mal hecho o malicioso no puede romper la app ni inyectar código. */
+function sanTxt(v, max){ return (typeof v === 'string' ? v : (typeof v === 'number' && Number.isFinite(v) ? String(v) : '')).slice(0, max); }
+function sanEntero(v, min, max, def){ const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def; }
+function sanFechaDia(v){ return (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v : null; }
+function sanFechaISO(v){ return (typeof v === 'string' && v.length <= 40 && !Number.isNaN(Date.parse(v))) ? v : null; }
+function sanImagen(v){ return (typeof v === 'string' && /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(v)) ? v : null; }
+function sanNumero(v){ return (typeof v === 'string' && /^\d{1,6}$/.test(v)) ? v : null; }
+function sanId(v){ return (typeof v === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(v)) ? v : null; }
+const SAN_ESTADOS = ['disponible', 'apartado', 'pagado'];
+function sanearSorteo(s){
+  if(!s || typeof s !== 'object' || Array.isArray(s)) return null;
+  const tipo = s.tipo === 'series' ? 'series' : 'regular';
+  const numeros = [];
+  const vistos = new Set();
+  let maxSerie = 1;
+  (Array.isArray(s.numeros) ? s.numeros : []).forEach(n => {
+    if(!n || typeof n !== 'object' || numeros.length >= 500000) return;
+    const numero = sanNumero(n.numero);
+    if(numero === null) return;
+    const serie = tipo === 'series' ? sanEntero(n.serie, 1, 50, 1) : 1;
+    const clave = serie + '|' + numero;
+    if(vistos.has(clave)) return;
+    vistos.add(clave);
+    if(serie > maxSerie) maxSerie = serie;
+    numeros.push({
+      serie, numero,
+      estado: SAN_ESTADOS.indexOf(n.estado) >= 0 ? n.estado : 'disponible',
+      comprador: sanTxt(n.comprador, 120), telefono: sanTxt(n.telefono, 40), notas: sanTxt(n.notas, 500),
+      fechaApartado: sanFechaISO(n.fechaApartado), fechaPago: sanFechaISO(n.fechaPago)
+    });
+  });
+  if(!numeros.length) return null; // sin números no es un sorteo válido
+  const porSerie = new Map();
+  numeros.forEach(n => porSerie.set(n.serie, (porSerie.get(n.serie) || 0) + 1));
+  const cantidadNumeros = Math.max.apply(null, Array.from(porSerie.values()));
+  const cantidadSeries = tipo === 'series' ? Math.max(maxSerie, sanEntero(s.cantidadSeries, 1, 50, maxSerie)) : 1;
+  let ganador = null;
+  if(s.ganador && typeof s.ganador === 'object' && sanNumero(s.ganador.numero) !== null){
+    ganador = { numero: s.ganador.numero, serie: sanEntero(s.ganador.serie, 1, 50, 1), nombre: sanTxt(s.ganador.nombre, 120) };
+  }
+  const historial = [];
+  (Array.isArray(s.historial) ? s.historial : []).forEach(h => {
+    if(!h || typeof h !== 'object' || historial.length >= 20000) return;
+    historial.push({
+      id: sanId(h.id) || uid(), fecha: sanFechaISO(h.fecha) || new Date().toISOString(),
+      accion: sanTxt(h.accion, 20), serie: sanEntero(h.serie, 1, 50, 1),
+      numero: sanNumero(h.numero) || '', comprador: sanTxt(h.comprador, 120), nota: sanTxt(h.nota, 300)
+    });
+  });
+  const valor = Number(s.valorNumero);
+  return {
+    id: sanId(s.id) || uid(),
+    titulo: sanTxt(s.titulo, 120).trim() || 'Sorteo',
+    imagen: sanImagen(s.imagen),
+    color: colorCardValido(s.color) ? s.color.toLowerCase() : null,
+    fechaSorteo: sanFechaDia(s.fechaSorteo) || todayISO(),
+    tipo, cantidadSeries, cantidadNumeros,
+    digitos: digitsFor(cantidadNumeros),
+    valorNumero: Number.isFinite(valor) && valor >= 0 ? valor : 0,
+    creadoEn: sanFechaISO(s.creadoEn) || new Date().toISOString(),
+    archivado: s.archivado === true,
+    fechaArchivado: sanFechaISO(s.fechaArchivado),
+    ganador, numeros, historial,
+    prueba: s.prueba === true
+  };
+}
+/* Devuelve {estado, descartados}: el estado limpio y cuántos sorteos hubo que descartar por estar dañados */
+function sanearEstado(obj){
+  const lista = (obj && Array.isArray(obj.sorteos)) ? obj.sorteos : [];
+  const sorteos = [];
+  const ids = new Set();
+  let descartados = 0;
+  lista.slice(0, 500).forEach(x => {
+    const limpio = sanearSorteo(x);
+    if(!limpio){ descartados++; return; }
+    if(ids.has(limpio.id)) limpio.id = uid();
+    ids.add(limpio.id);
+    sorteos.push(limpio);
+  });
+  return { estado: { sorteos }, descartados: descartados + Math.max(0, lista.length - 500) };
+}
+/* Reglas del modo de prueba para un respaldo importado: 1 sorteo abierto y 1 finalizado como máximo,
+   sin series y con PRUEBA_MAX_NUMEROS números como máximo en cada uno. Devuelve un texto de error o null. */
+function errorLimitesPrueba(estado){
+  let abiertos = 0, archivados = 0;
+  for(const s of estado.sorteos){
+    if(s.tipo === 'series' || s.numeros.length > PRUEBA_MAX_NUMEROS) return `En el modo de prueba solo se admiten sorteos regulares de hasta ${PRUEBA_MAX_NUMEROS} números.`;
+    if(s.archivado) archivados++; else abiertos++;
+  }
+  if(abiertos > 1 || archivados > 1) return 'En el modo de prueba solo se admite 1 sorteo abierto y 1 finalizado.';
+  return null;
+}
+
 async function cargarEstadoInicial(){
   // 1) Intentar leer de IndexedDB (fuente de verdad actual)
   try{
     const guardado = await dbGetState();
     if(guardado && Array.isArray(guardado.sorteos)){
-      state = guardado;
+      const limpio = sanearEstado(guardado);
+      state = limpio.estado;
+      if(limpio.descartados){
+        toast(`Se descartaron ${limpio.descartados} sorteo(s) con datos dañados`);
+        try{ await dbSetState(state); }catch(e){}
+      }
       return;
     }
   }catch(e){ console.warn('No se pudo leer IndexedDB', e); }
@@ -2530,7 +2744,7 @@ async function cargarEstadoInicial(){
     const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
     if(raw){
       const parsed = JSON.parse(raw);
-      if(parsed && Array.isArray(parsed.sorteos)) migrado = parsed;
+      if(parsed && Array.isArray(parsed.sorteos)) migrado = sanearEstado(parsed).estado;
     }
   }catch(e){ console.warn('No se pudo leer datos de la versión anterior', e); }
 
@@ -2577,12 +2791,21 @@ function importarJSON(file){
     try{ parsed = JSON.parse(reader.result); }
     catch(err){ toast('El archivo no es un JSON válido'); return; }
     if(!parsed || !Array.isArray(parsed.sorteos)){ toast('El archivo no tiene el formato esperado (falta "sorteos")'); return; }
+    const limpio = sanearEstado(parsed);
+    if(modoPrueba){
+      // En la prueba, todo lo importado cuenta como sorteo de prueba y respeta sus límites
+      limpio.estado.sorteos.forEach(x => { x.prueba = true; });
+      const errP = errorLimitesPrueba(limpio.estado);
+      if(errP){ toast(errP + ' Compra un código para quitar estos límites.'); return; }
+    }
+    if(!limpio.estado.sorteos.length){ toast('El archivo no contiene sorteos válidos'); return; }
     const actuales = state.sorteos.length;
-    const nuevos = parsed.sorteos.length;
+    const nuevos = limpio.estado.sorteos.length;
     confirmar('Importar copia de seguridad',
-      `Esto reemplazará los ${actuales} sorteo(s) actuales por los ${nuevos} del archivo. Esta acción no se puede deshacer. ¿Continuar?`,
+      `Esto reemplazará los ${actuales} sorteo(s) actuales por los ${nuevos} del archivo` +
+      (limpio.descartados ? ` (se omiten ${limpio.descartados} con datos dañados)` : '') + `. Esta acción no se puede deshacer. ¿Continuar?`,
       async ()=>{
-        state = parsed;
+        state = limpio.estado;
         try{ await dbSetState(state); }
         catch(e){ console.warn('No se pudo guardar el estado importado', e); }
         toast('Datos importados correctamente');
@@ -4705,8 +4928,35 @@ function iniciarImagenDisponibles(sorteo){
 async function iniciarAppPrincipal(){
   appPrincipalIniciada = true;
   document.getElementById('home-content').innerHTML = `<div class="empty-state"><div class="big">${icon('loader', 'icon-spin')}</div><div>Cargando datos...</div></div>`;
-  await cargarEstadoInicial();
-  renderHome();
+  try{
+    await cargarEstadoInicial();
+    renderHome();
+  }catch(e){
+    console.error('No se pudieron mostrar los datos', e);
+    mostrarErrorDeDatos();
+  }
+}
+/* Si algo falla al pintar los datos guardados, en vez de quedarse en "Cargando datos..." se ofrece salvarlos o empezar de cero */
+function mostrarErrorDeDatos(){
+  const cont = document.getElementById('home-content');
+  cont.innerHTML = `<div class="empty-state"><div class="big">${icon('lock')}</div>
+    <div><b>No se pudieron cargar tus datos</b></div>
+    <p class="form-hint">Puede ser un archivo dañado. Descarga una copia por si acaso y empieza de cero.</p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+      <button class="btn-secondary" id="btn-error-copia">${icon('download')} Descargar copia de los datos</button>
+      <button class="btn-primary" id="btn-error-reiniciar">Empezar de cero</button>
+    </div></div>`;
+  document.getElementById('btn-error-copia').addEventListener('click', async ()=>{
+    let crudo = state;
+    try{ crudo = (await dbGetState()) || state; }catch(e){}
+    const blob = new Blob([JSON.stringify(crudo, null, 2)], {type:'application/json'});
+    descargarBlob(blob, `sorteos-datos-danados-${todayISO()}.json`);
+  });
+  document.getElementById('btn-error-reiniciar').addEventListener('click', async ()=>{
+    state = { sorteos: [] };
+    try{ await dbSetState(state); }catch(e){}
+    try{ renderHome(); }catch(e){ console.error(e); }
+  });
 }
 
 /* -- Eventos de la pantalla de login / licencia -- */
@@ -4777,11 +5027,7 @@ configurarBotonContacto('btn-licencia-contacto', 'licencia-contacto-opciones', '
 (async function initApp(){
   const lic = leerLicenciaLocal();
   if(licenciaVigente(lic)){
-    modoPrueba = false;
-    ocultarPantallaLogin();
-    await iniciarAppPrincipal();
-    mostrarAvisoVencimientoSiAplica(lic);
-    chequearLicenciaEnSegundoPlano(lic); // no bloquea: corre despues de pintar la app
+    await arrancarConLicencia(lic);
     return;
   }
   const prueba = leerPruebaLocal();
@@ -4799,9 +5045,19 @@ configurarBotonContacto('btn-licencia-contacto', 'licencia-contacto-opciones', '
 /* Revisión de versión: al abrir, al volver a la app, al reconectar y cada 5 minutos */
 if(typeof fetch === 'function'){
   chequearVersionApp();
-  document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') chequearVersionApp(); });
-  window.addEventListener('online', chequearVersionApp);
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState === 'visible'){
+      chequearVersionApp();
+      if(Date.now() - ultimaRevisionLicenciaMs > 10 * 60000) revisarLicenciaAbierta();
+    }
+  });
+  window.addEventListener('online', ()=>{
+    chequearVersionApp();
+    if(bloqueoPorConexion){ const l = leerLicenciaLocal(); if(l) arrancarConLicencia(l); } // volvió internet: se reintenta sola
+    else revisarLicenciaAbierta();
+  });
   setInterval(chequearVersionApp, VERSION_REVISAR_CADA_MS);
+  setInterval(revisarLicenciaAbierta, LICENCIA_REVISAR_CADA_MS);
 }
 </script>
 <script>
