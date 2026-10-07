@@ -41,7 +41,7 @@
     padding:8px 10px;border-bottom:1px solid var(--border);}
   td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:middle;}
   tr:last-child td{border-bottom:none;}
-  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;}
+  .pill{display:inline-block;white-space:nowrap;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;}
   .pill-activo{background:var(--ok-bg);color:var(--ok);}
   .pill-sin_usar{background:rgba(255,255,255,.1);color:var(--muted);}
   .pill-dado_de_baja{background:var(--danger-bg);color:var(--danger);}
@@ -64,6 +64,14 @@
   .login-card .sub{text-align:center;}
   .login-card button{width:100%;margin-top:14px;}
   .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px;}
+  .kpi{background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;padding:12px 14px;}
+  .kpi b{display:block;font-size:24px;line-height:1.1;}
+  .kpi span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:4px;}
+  .kpi small{display:block;font-size:11.5px;color:var(--muted);margin-top:3px;}
+  .kpi-ok b{color:var(--ok);}
+  .pill-prueba{background:rgba(124,99,255,.2);color:#b9a8ff;}
+  .nota-panel{color:var(--muted);font-size:12.5px;margin:12px 0 0;line-height:1.45;}
   .filtros{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
   .filtros input,.filtros select{width:auto;min-width:160px;}
   @media (max-width:640px){
@@ -141,6 +149,29 @@
       </select>
     </div>
     <div id="tabla-codigos-wrap"><div class="empty">Cargando...</div></div>
+  </div>
+
+  <div class="panel" id="panel-conversion">
+    <div class="toolbar">
+      <h2 style="margin:0;">Pruebas y conversión a código</h2>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-secondary btn-sm" id="btn-csv-conversion">Descargar CSV</button>
+        <button class="btn-secondary btn-sm" id="btn-refrescar-conversion">Actualizar</button>
+      </div>
+    </div>
+    <p class="sub" style="margin:0 0 14px;">Dispositivos que iniciaron el período de prueba y cuáles de ellos entraron después con un código.</p>
+    <div class="kpis" id="conversion-kpis"></div>
+    <div class="filtros">
+      <input type="text" id="filtro-conversion-busqueda" placeholder="Buscar por dispositivo, código, nombre o teléfono...">
+      <select id="filtro-conversion-estado">
+        <option value="">Todas las pruebas</option>
+        <option value="convirtio">Entraron con código</option>
+        <option value="en_prueba">En prueba ahora</option>
+        <option value="vencida">Prueba vencida sin código</option>
+      </select>
+    </div>
+    <div id="tabla-conversion-wrap"><div class="empty">Cargando...</div></div>
+    <p class="nota-panel">Cada dispositivo se identifica por su navegador. Si alguien borra los datos del navegador (o cambia de celular) antes de ingresar el código, se ve como un dispositivo nuevo y esa conversión no se puede enlazar con su prueba.</p>
   </div>
 
   <div class="panel">
@@ -230,6 +261,7 @@ function mostrarPanelAdmin(){
   document.getElementById('panel-admin').style.display = 'block';
   cargarCodigos();
   cargarIntentos();
+  cargarConversion();
   cargarEliminados();
 }
 
@@ -472,6 +504,151 @@ async function cargarIntentos(){
     </table>`;
 }
 document.getElementById('btn-refrescar-intentos').addEventListener('click', cargarIntentos);
+
+/* ---------- Pruebas y conversión a código ---------- */
+const PRUEBA_DIAS = 15; // igual que PRUEBA_DIAS en index.html
+const DIA_MS = 86400000;
+const RESULTADOS_INGRESO_OK = ['activado', 'aceptado', 'tomado_otro_dispositivo'];
+let filasConversion = [];
+
+/* Trae todas las filas de una consulta, de 1000 en 1000 (el límite por consulta de Supabase) */
+async function traerTodasLasFilas(construir){
+  const PAGINA = 1000, todas = [];
+  for(let desde = 0; ; desde += PAGINA){
+    const { data, error } = await construir().range(desde, desde + PAGINA - 1);
+    if(error) throw error;
+    todas.push(...(data || []));
+    if(!data || data.length < PAGINA) break;
+    if(desde > 200000) break; // tope de seguridad
+  }
+  return todas;
+}
+
+/* Une pruebas + primer ingreso exitoso con código posterior al inicio de la prueba */
+function calcularConversion(pruebas, ingresos, licencias, ahora){
+  const tipoPorCodigo = new Map((licencias || []).map(l => [l.codigo, l.tipo]));
+  const ingresosPorFp = new Map();
+  (ingresos || []).slice().sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en)).forEach(r => {
+    if(!ingresosPorFp.has(r.fingerprint)) ingresosPorFp.set(r.fingerprint, []);
+    ingresosPorFp.get(r.fingerprint).push(r);
+  });
+  return (pruebas || []).map(p => {
+    const inicio = new Date(p.fecha_inicio);
+    const fin = new Date(inicio.getTime() + PRUEBA_DIAS * DIA_MS);
+    const ev = (ingresosPorFp.get(p.fingerprint) || []).find(r => new Date(r.creado_en) >= inicio) || null;
+    const estado = ev ? 'convirtio' : (ahora < fin ? 'en_prueba' : 'vencida');
+    return {
+      fingerprint: p.fingerprint, inicio, fin, intentos: p.intentos || 1, estado,
+      codigo: ev ? ev.codigo_texto : '', tipo: ev ? (tipoPorCodigo.get(ev.codigo_texto) || '') : '',
+      nombre: ev ? (ev.nombre || '') : '', telefono: ev ? (ev.telefono || '') : '',
+      fechaCodigo: ev ? new Date(ev.creado_en) : null,
+      diasHastaCodigo: ev ? Math.max(0, Math.floor((new Date(ev.creado_en) - inicio) / DIA_MS)) : null,
+      diasRestantes: ev ? null : Math.ceil((fin - ahora) / DIA_MS)
+    };
+  }).sort((a, b) => b.inicio - a.inicio);
+}
+
+function resumenConversion(filas){
+  const total = filas.length;
+  const conv = filas.filter(f => f.estado === 'convirtio');
+  const enPrueba = filas.filter(f => f.estado === 'en_prueba').length;
+  const vencidas = filas.filter(f => f.estado === 'vencida').length;
+  const cerradas = conv.length + vencidas;
+  const pct = (a, b) => b ? Math.round(a * 1000 / b) / 10 : null;
+  const prom = conv.length ? Math.round(conv.reduce((t, f) => t + f.diasHastaCodigo, 0) * 10 / conv.length) / 10 : null;
+  return { total, convirtieron: conv.length, enPrueba, vencidas, pctTotal: pct(conv.length, total), pctCerradas: pct(conv.length, cerradas), promedioDias: prom };
+}
+
+async function cargarConversion(){
+  const wrap = document.getElementById('tabla-conversion-wrap');
+  wrap.innerHTML = '<div class="empty">Cargando...</div>';
+  try{
+    const [pruebas, ingresos, licencias] = await Promise.all([
+      traerTodasLasFilas(() => sb.from('pruebas_dispositivo').select('fingerprint,fecha_inicio,intentos').order('fecha_inicio', { ascending: true }).order('id', { ascending: true })),
+      traerTodasLasFilas(() => sb.from('intentos_login').select('fingerprint,codigo_texto,resultado,nombre,telefono,creado_en').in('resultado', RESULTADOS_INGRESO_OK).order('creado_en', { ascending: true }).order('id', { ascending: true })),
+      traerTodasLasFilas(() => sb.from('licencias').select('codigo,tipo').order('codigo', { ascending: true }))
+    ]);
+    filasConversion = calcularConversion(pruebas, ingresos, licencias, new Date());
+    renderConversion();
+  }catch(e){
+    document.getElementById('conversion-kpis').innerHTML = '';
+    wrap.innerHTML = `<div class="empty">No se pudo cargar: ${escapeHtml(e && e.message ? e.message : String(e))}</div>`;
+  }
+}
+
+const ESTADO_PRUEBA_LEGIBLE = { convirtio: 'Entró con código', en_prueba: 'En prueba', vencida: 'Vencida sin código' };
+function filtrarConversion(){
+  const q = document.getElementById('filtro-conversion-busqueda').value.trim().toLowerCase();
+  const est = document.getElementById('filtro-conversion-estado').value;
+  return filasConversion.filter(f => {
+    if(est && f.estado !== est) return false;
+    if(!q) return true;
+    return [f.fingerprint, f.codigo, f.nombre, f.telefono].filter(Boolean).join(' ').toLowerCase().includes(q);
+  });
+}
+function renderConversion(){
+  const r = resumenConversion(filasConversion);
+  const fmtPct = v => v === null ? '—' : v.toString().replace('.', ',') + ' %';
+  document.getElementById('conversion-kpis').innerHTML = `
+    <div class="kpi"><b>${r.total}</b><span>Pruebas iniciadas</span></div>
+    <div class="kpi kpi-ok"><b>${r.convirtieron}</b><span>Entraron con código</span></div>
+    <div class="kpi"><b>${r.enPrueba}</b><span>En prueba ahora</span></div>
+    <div class="kpi"><b>${r.vencidas}</b><span>Vencieron sin código</span></div>
+    <div class="kpi kpi-ok"><b>${fmtPct(r.pctTotal)}</b><span>Conversión total</span><small>sobre todas las pruebas</small></div>
+    <div class="kpi kpi-ok"><b>${fmtPct(r.pctCerradas)}</b><span>Conversión de pruebas cerradas</span><small>sin contar las que siguen en prueba</small></div>
+    <div class="kpi"><b>${r.promedioDias === null ? '—' : r.promedioDias.toString().replace('.', ',')}</b><span>Días hasta el código</span><small>promedio</small></div>`;
+  const wrap = document.getElementById('tabla-conversion-wrap');
+  if(filasConversion.length === 0){ wrap.innerHTML = '<div class="empty">Todavía no hay pruebas registradas.</div>'; return; }
+  const filas = filtrarConversion();
+  if(filas.length === 0){ wrap.innerHTML = '<div class="empty">No hay dispositivos que coincidan.</div>'; return; }
+  const MAX = 500, visibles = filas.slice(0, MAX);
+  wrap.innerHTML = `
+    <table>
+      <thead><tr><th>Dispositivo</th><th>Inicio de prueba</th><th>Estado</th><th>Código</th><th>Cliente</th><th>Ingresó con código</th><th>Días hasta el código</th></tr></thead>
+      <tbody>
+        ${visibles.map(f => `<tr>
+          <td data-label="Dispositivo"><span class="mono" title="${escapeHtml(f.fingerprint)}">${escapeHtml((f.fingerprint || '').slice(0, 10))}…</span>${f.intentos > 1 ? ` <small style="color:var(--muted)">(${f.intentos} veces)</small>` : ''}</td>
+          <td data-label="Inicio de prueba">${formatFecha(f.inicio)}</td>
+          <td data-label="Estado"><span class="pill ${f.estado === 'convirtio' ? 'pill-activo' : (f.estado === 'en_prueba' ? 'pill-prueba' : 'pill-vencido')}">${ESTADO_PRUEBA_LEGIBLE[f.estado]}</span>${f.estado === 'en_prueba' ? ` <small style="color:var(--muted)">${f.diasRestantes} d</small>` : ''}</td>
+          <td data-label="Código">${f.codigo ? `<span class="mono">${escapeHtml(f.codigo)}</span>${f.tipo ? ` <small style="color:var(--muted)">${TIPO_LEGIBLE[f.tipo] || escapeHtml(f.tipo)}</small>` : ''}` : '—'}</td>
+          <td data-label="Cliente">${escapeHtml([f.nombre, f.telefono].filter(Boolean).join(' · ')) || '—'}</td>
+          <td data-label="Ingresó con código">${f.fechaCodigo ? formatFecha(f.fechaCodigo) : '—'}</td>
+          <td data-label="Días hasta el código">${f.diasHastaCodigo === null ? '—' : f.diasHastaCodigo}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    ${filas.length > MAX ? `<div class="empty">Mostrando ${MAX} de ${filas.length}. Usa los filtros o descarga el CSV para ver todos.</div>` : ''}`;
+}
+
+/* CSV (con BOM para Excel). Los textos que empiezan con = + - @ se neutralizan para que Excel no los trate como fórmula. */
+function celdaCSV(v){
+  let t = String(v == null ? '' : v);
+  if(/^[=+\-@\t\r]/.test(t)) t = "'" + t;
+  return '"' + t.replace(/"/g, '""') + '"';
+}
+function csvConversion(filas){
+  const enc = ['Dispositivo', 'Inicio de prueba', 'Fin de prueba', 'Estado', 'Código', 'Tipo de código', 'Nombre', 'Teléfono', 'Ingresó con código', 'Días hasta el código'];
+  const iso = d => d ? fechaLocalYMD(d) : '';
+  const lineas = [enc.map(celdaCSV).join(',')];
+  filas.forEach(f => lineas.push([
+    f.fingerprint, iso(f.inicio), iso(f.fin), ESTADO_PRUEBA_LEGIBLE[f.estado], f.codigo, TIPO_LEGIBLE[f.tipo] || f.tipo,
+    f.nombre, f.telefono, iso(f.fechaCodigo), f.diasHastaCodigo === null ? '' : f.diasHastaCodigo
+  ].map(celdaCSV).join(',')));
+  return '\ufeff' + lineas.join('\r\n');
+}
+document.getElementById('btn-csv-conversion').addEventListener('click', ()=>{
+  const filas = filtrarConversion();
+  if(!filas.length){ return; }
+  const blob = new Blob([csvConversion(filas)], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `pruebas-y-conversion-${fechaLocalYMD(new Date())}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=> URL.revokeObjectURL(url), 1000);
+});
+document.getElementById('btn-refrescar-conversion').addEventListener('click', cargarConversion);
+document.getElementById('filtro-conversion-busqueda').addEventListener('input', renderConversion);
+document.getElementById('filtro-conversion-estado').addEventListener('change', renderConversion);
 
 /* ---------- Códigos y clientes eliminados (auditoría) ---------- */
 let todosLosEliminados = [];
